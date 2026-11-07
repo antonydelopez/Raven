@@ -8,6 +8,8 @@
  */
 
 #include "vk_backend.h"
+#include <stdio.h> /* changed by kit */
+#include <stdlib.h>
 
 /* VkWin32SurfaceCreateInfoKHR */
 typedef struct rvn_vk_win32_surface_info_t {
@@ -292,6 +294,7 @@ int rvn_vk_swapchain_create(rvn_vk_surface_t* surface, uint32_t width, uint32_t 
 			break;
 		}
 	}
+	if (getenv("RAVEN_VK_TRACE")) fprintf(stderr, "[raven vk] swapchain: supportedCompositeAlpha=0x%x chosen=0x%x transparent=%d present_mode=%d\n", (unsigned)caps.supportedCompositeAlpha, (unsigned)info.compositeAlpha, surface->transparent, (int)present_mode); /* changed by kit: M1 trace */
 	info.presentMode = present_mode;
 	info.clipped = VK_TRUE;
 	info.oldSwapchain = surface->swapchain;

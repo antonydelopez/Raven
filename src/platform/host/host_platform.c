@@ -20,7 +20,11 @@ struct rvn_pwindow_t {
 	void* user;
 	char* title;
 	rvn_pwindow_state_t state;
+	RNativeWindow native; /* changed by kit: the surface the application gave (raven_host.h) */
 };
+
+/* changed by kit: handles the next host window presents to (consumed by window_create) */
+static RNativeWindow g_host_next_native;
 
 static struct {
 	int registered;
@@ -70,6 +74,8 @@ static rvn_pwindow_t* rvn_host_window_create(const rvn_pwindow_desc_t* desc) {
 	window->scale = 1.0f;
 	window->user = desc->user;
 	window->title = rvn_strdup(desc->title);
+	window->native = g_host_next_native;
+	memset(&g_host_next_native, 0, sizeof(g_host_next_native));
 	return window;
 }
 
@@ -160,7 +166,7 @@ static void rvn_host_window_set_cursor(rvn_pwindow_t* window, RCursor cursor) {
 }
 
 static void rvn_host_window_get_native(rvn_pwindow_t* window, RNativeWindow* native) {
-	RVN_UNUSED(window);
+	if (window->native.system != R_WINDOW_SYSTEM_NONE) { *native = window->native; return; }
 	memset(native, 0, sizeof(*native));
 	native->system = R_WINDOW_SYSTEM_NONE;
 }
@@ -283,6 +289,15 @@ void Rhost_platform_register(const RHostPlatformDesc* desc) {
 	} else {
 		memset(&g_host_desc, 0, sizeof(g_host_desc));
 	}
+}
+
+/* changed by kit: the next host window presents to a surface the application owns */
+void Rhost_window_set_native_for_next(RWindowSystem system, void* display, uintptr_t surface, int transparent) {
+	memset(&g_host_next_native, 0, sizeof(g_host_next_native));
+	g_host_next_native.system = system;
+	g_host_next_native.display = display;
+	g_host_next_native.window = surface;
+	g_host_next_native.transparent = transparent;
 }
 
 int Rhost_platform_is_active(void) {
