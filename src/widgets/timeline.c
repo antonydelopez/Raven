@@ -162,6 +162,8 @@ typedef struct rvn_timeline_t {
 	void* activated_user;
 	RTimelineItemCallback removed_callback;
 	void* removed_user;
+	RTimelineClipPaintCallback clip_paint;
+	void* clip_paint_user;
 } rvn_timeline_t;
 
 static const uint32_t g_tl_palette[] = { 0x0A84FF, 0xFF9F0A, 0x30D158, 0xBF5AF2, 0xFF375F, 0x64D2FF, 0xFFD60A, 0xAC8E68 };
@@ -796,6 +798,12 @@ static void rvn_tl_paint_clip(rvn_timeline_t* tl, RPainter* painter, const rvn_t
 		/* a bar of its color on its left */
 		rvn_paint_push_clip(painter, rvn_rect(rect.x, rect.y, rvn_minf(3.0f * layout->unit, rect.w), rect.h));
 		rvn_paint_box(painter, rect, radius, rvn_color_fade(color | 0xFF000000u, opacity), 0.0f, 0);
+		rvn_paint_pop_clip(painter);
+	}
+	if (tl->clip_paint) {
+		/* kit-proto: the app draws inside the clip (a filmstrip, a waveform): it gets the clip's whole rectangle, in the widget's own units */
+		rvn_paint_push_clip(painter, rvn_rect(rect.x, rect.y, rect.w, rect.h));
+		tl->clip_paint(tl->base.id, item->id, painter, rect.x, rect.y, rect.w, rect.h, tl->clip_paint_user);
 		rvn_paint_pop_clip(painter);
 	}
 	if (cl->border_width > 0.0f) rvn_paint_box(painter, rect, radius, 0, cl->border_width, rvn_color_fade(border, opacity));
@@ -2320,6 +2328,13 @@ void Rtimeline_set_time_callback(Rid id, RTimelineTimeCallback callback, void* u
 	RVN_TIMELINE_VOID(tl, id);
 	tl->time_callback = callback;
 	tl->time_user = user_data;
+}
+
+void Rtimeline_set_clip_paint_callback(Rid id, RTimelineClipPaintCallback callback, void* user_data) {
+	RVN_TIMELINE_VOID(tl, id);
+	tl->clip_paint = callback;
+	tl->clip_paint_user = user_data;
+	rvn_widget_invalidate_paint(&tl->base);
 }
 
 void Rtimeline_set_changed_callback(Rid id, RTimelineItemCallback callback, void* user_data) {
