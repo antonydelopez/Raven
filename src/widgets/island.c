@@ -51,6 +51,8 @@ typedef struct rvn_island_t {
 	double left_at;
 	/** Folded by a click while under the pointer: the pointer does not unfold it again until it has left. */
 	int hover_blocked;
+	/** Risland_set_calm: it opens with the smooth motion instead of the bouncy one. */
+	int calm;
 
 	/** The size it is drawn with; it runs after the size of the content shown. */
 	RSpring width, height;
@@ -290,8 +292,8 @@ static rvn_vec2_t rvn_island_measure(rvn_widget_t* widget) {
 		island->goal_w = target.x;
 		island->goal_h = target.y;
 		/* it springs open and settles shut */
-		rvn_widget_animate_layout(widget, &island->width, target.x, island->expanded ? R_MOTION_BOUNCY : R_MOTION_SMOOTH);
-		rvn_widget_animate_layout(widget, &island->height, target.y, island->expanded ? R_MOTION_BOUNCY : R_MOTION_SMOOTH);
+		rvn_widget_animate_layout(widget, &island->width, target.x, island->expanded && !island->calm ? R_MOTION_BOUNCY : R_MOTION_SMOOTH);
+		rvn_widget_animate_layout(widget, &island->height, target.y, island->expanded && !island->calm ? R_MOTION_BOUNCY : R_MOTION_SMOOTH);
 	}
 	return rvn_vec2(rvn_maxf(island->width.value, rvn_minf(folded.x, unfolded.x)), rvn_maxf(island->height.value, rvn_minf(folded.y, unfolded.y)));
 }
@@ -601,6 +603,11 @@ void Risland_set_expand_on_hover(Rid id, int enabled) {
 void Risland_set_expand_on_click(Rid id, int enabled) {
 	RVN_WIDGET_VOID(widget, id, R_WIDGET_ISLAND);
 	((rvn_island_t*)widget)->no_click = !enabled;
+}
+
+void Risland_set_calm(Rid id, int calm) {
+	RVN_WIDGET_VOID(widget, id, R_WIDGET_ISLAND);
+	((rvn_island_t*)widget)->calm = calm != 0;
 }
 
 void Risland_set_attached(Rid id, int attached) {
