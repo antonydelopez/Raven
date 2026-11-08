@@ -32,6 +32,7 @@ ffi.cdef[[
 typedef uint32_t Rid;
 typedef uint32_t Ruint;
 typedef struct RPainter RPainter;
+typedef struct RPainter RPainter;
 typedef enum RBackend {
 	R_BACKEND_VULKAN = 1,
 	R_BACKEND_NULL = 2,
@@ -789,6 +790,7 @@ typedef void (*RIslandChangedCallback)(Rid island, int expanded, void* user_data
 typedef void (*RColorChangedCallback)(Rid picker, float r, float g, float b, float a, void* user_data);
 typedef void (*RTimelineTimeCallback)(Rid timeline, double seconds, void* user_data);
 typedef void (*RTimelineItemCallback)(Rid timeline, int item, void* user_data);
+typedef void (*RTimelineClipPaintCallback)(Rid timeline, int item, RPainter* painter, float x, float y, float width, float height, void* user_data);
 typedef int (*RNodeGraphConnectCallback)(Rid graph, int output_pin, int input_pin, void* user_data);
 typedef void (*RNodeGraphItemCallback)(Rid graph, int item, void* user_data);
 typedef void (*RNodeGraphContextCallback)(Rid graph, int node, float x, float y, void* user_data);
@@ -1716,6 +1718,7 @@ int Risland_is_expanded(Rid island);
 void Risland_expand_for(Rid island, double seconds);
 void Risland_set_expand_on_hover(Rid island, int enabled);
 void Risland_set_expand_on_click(Rid island, int enabled);
+void Risland_set_calm(Rid island, int calm);
 void Risland_set_attached(Rid island, int attached);
 void Risland_set_notch(Rid island, int enabled);
 int Risland_get_notch(Rid island);
@@ -1761,6 +1764,8 @@ double Rtimeline_get_time(Rid timeline);
 void Rtimeline_set_frame_rate(Rid timeline, double frames_per_second);
 double Rtimeline_get_frame_rate(Rid timeline);
 void Rtimeline_set_snapping(Rid timeline, int enabled);
+void Rtimeline_set_markers_locked(Rid timeline, int locked);
+int Rtimeline_get_markers_locked(Rid timeline);
 void Rtimeline_set_view(Rid timeline, double start, double end);
 void Rtimeline_get_view(Rid timeline, double* start, double* end);
 void Rtimeline_set_playing(Rid timeline, int playing);
@@ -1808,6 +1813,7 @@ int Rtimeline_is_selected(Rid timeline, int item);
 int Rtimeline_get_selection_count(Rid timeline);
 int Rtimeline_get_selected(Rid timeline, int index);
 void Rtimeline_set_time_callback(Rid timeline, RTimelineTimeCallback callback, void* user_data);
+void Rtimeline_set_clip_paint_callback(Rid timeline, RTimelineClipPaintCallback callback, void* user_data);
 void Rtimeline_set_changed_callback(Rid timeline, RTimelineItemCallback callback, void* user_data);
 void Rtimeline_set_selection_callback(Rid timeline, RTimelineItemCallback callback, void* user_data);
 void Rtimeline_set_activated_callback(Rid timeline, RTimelineItemCallback callback, void* user_data);
@@ -2098,6 +2104,7 @@ void Raccessibility_announce(const char* text, int assertive);
 int Raccessibility_is_screen_reader_active(void);
 void Rhost_platform_register(const RHostPlatformDesc* desc);
 int Rhost_platform_is_active(void);
+void Rhost_window_set_native_for_next(RWindowSystem system, void* display, uintptr_t surface, int transparent);
 void Rhost_window_set_size(Rid window, int width, int height, float scale);
 void Rhost_inject_mouse_move(Rid window, int x, int y, Ruint modifiers);
 void Rhost_inject_mouse_button(Rid window, int x, int y, RMouseButton button, int pressed, Ruint modifiers);

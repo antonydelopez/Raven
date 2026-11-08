@@ -424,6 +424,7 @@ static const rvn_schema_attribute_t g_timeline[] = {
 	N("Time", "Where the playhead is, in seconds."),
 	N("FrameRate", "Frames per second: times snap to frames and show as seconds:frames; 0 = none."),
 	B("Snapping", "Items snap to frames, to the playhead and to each other."),
+	B("MarkersLocked", "Markers are neither dragged nor removed with Delete."),
 	N("ViewStart", "First second shown."),
 	N("ViewEnd", "Last second shown."),
 	B("Loop", "Playing starts again at the end."),

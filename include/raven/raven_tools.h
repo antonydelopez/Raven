@@ -194,6 +194,9 @@ extern "C" {
 	RAVEN_API double Rtimeline_get_frame_rate(Rid timeline);
 	/** @brief R_FALSE lets items be placed anywhere (holding Alt while dragging does it for one move). */
 	RAVEN_API void Rtimeline_set_snapping(Rid timeline, int enabled);
+	/** @brief R_TRUE: this timeline's markers are neither dragged nor removed with Delete (MarkersLocked in XML). R_FALSE by default. */
+	RAVEN_API void Rtimeline_set_markers_locked(Rid timeline, int locked);
+	RAVEN_API int Rtimeline_get_markers_locked(Rid timeline);
 	/** @brief The part of the sequence that is shown. Zooming is showing less. */
 	RAVEN_API void Rtimeline_set_view(Rid timeline, double start, double end);
 	RAVEN_API void Rtimeline_get_view(Rid timeline, double* start, double* end);

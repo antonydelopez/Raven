@@ -2798,6 +2798,14 @@ namespace Raven
     public delegate void RTimelineItemCallback(uint timeline, int item, IntPtr user_data);
 
     /// <summary>
+    /// Called while a clip is painted, after its body and before its name: draw inside it (a filmstrip, a waveform).
+    /// (x, y, width, height) is the clip's whole rectangle in the timeline's own units (part of it may be off screen:
+    /// the painter is already clipped to the visible part). Use Rtimeline_get_item_start/length for the times it covers.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RTimelineClipPaintCallback(uint timeline, int item, IntPtr painter, float x, float y, float width, float height, IntPtr user_data);
+
+    /// <summary>
     /// Asked when the user is about to link two pins that may be
     /// linked: return R_FALSE to refuse (a loop, a rule of the application).
     /// </summary>
@@ -6592,6 +6600,12 @@ namespace Raven
         public static extern void Risland_set_expand_on_click(uint island, int enabled);
 
         /// <summary>
+        /// R_TRUE: the island opens with the smooth motion, without the bounce at the end (default R_FALSE: it bounces).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Risland_set_calm(uint island, int calm);
+
+        /// <summary>
         /// R_TRUE gives the island square upper corners: a notch that hangs
         /// from the edge it touches, instead of a capsule that floats under it.
         /// </summary>
@@ -6882,6 +6896,15 @@ namespace Raven
         public static extern void Rtimeline_set_snapping(uint timeline, int enabled);
 
         /// <summary>
+        /// R_TRUE: this timeline's markers are neither dragged nor removed with Delete (MarkersLocked in XML). R_FALSE by default.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtimeline_set_markers_locked(uint timeline, int locked);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtimeline_get_markers_locked(uint timeline);
+
+        /// <summary>
         /// The part of the sequence that is shown. Zooming is showing less.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
@@ -7108,6 +7131,9 @@ namespace Raven
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rtimeline_set_time_callback(uint timeline, RTimelineTimeCallback callback, IntPtr user_data);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtimeline_set_clip_paint_callback(uint timeline, RTimelineClipPaintCallback callback, IntPtr user_data);
 
         /// <summary>
         /// Called for each item the user moved, stretched or retimed, as
@@ -8815,6 +8841,13 @@ namespace Raven
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rhost_platform_is_active();
+
+        /// <summary>
+        /// changed by kit: the next host window created presents to this surface (Wayland: display =
+        /// wl_display*, surface = wl_surface*) instead of a headless one. `transparent`: premultiplied alpha.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rhost_window_set_native_for_next(RWindowSystem system, IntPtr display, UIntPtr surface, int transparent);
 
         /// <summary>
         /// Size of a host window in pixels, and pixels per logical unit.

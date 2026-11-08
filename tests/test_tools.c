@@ -977,6 +977,81 @@ static void test_hooks(void) {
 	CHECK(g_destroyed == 6);
 }
 
+/* Markers are dragged and removed with Delete, unless the timeline locks them (MarkersLocked, off by default). */
+static int g_marker_removed;
+static void on_marker_removed(Rid timeline, int item, void* user_data) {
+	(void)timeline;
+	(void)item;
+	(void)user_data;
+	g_marker_removed++;
+}
+
+static int find_marker(Rid tl) {
+	int i;
+	for (i = 0; i < Rtimeline_get_item_count(tl); i++) {
+		int item = Rtimeline_get_item(tl, i);
+		if (Rtimeline_get_item_type(tl, item) == R_TIMELINE_MARKER) return item;
+	}
+	return 0;
+}
+
+/* The marker (at 3 s) is dragged to 5 s and removed with Delete, or does neither when `locked`. */
+static void check_marker_gesture(Rid window, Rid tl, int locked) {
+	float x, y, w, h;
+	int marker = find_marker(tl);
+	CHECK(marker != 0 && Rtimeline_get_item_start(tl, marker) == 3.0);
+	CHECK(Rtimeline_get_markers_locked(tl) == locked);
+	Rtimeline_set_removed_callback(tl, on_marker_removed, NULL);
+	Rwidget_get_rect(tl, &x, &y, &w, &h);
+	/* 100 units of headers, then 10 seconds over 800 units: the flag of a marker is in the ruler */
+	drag(window, x + 100.0f + 240.0f + 4.0f, y + 10.0f, x + 100.0f + 400.0f + 4.0f, y + 10.0f);
+	if (locked) CHECK(Rtimeline_get_item_start(tl, marker) == 3.0);
+	else CHECK_NEAR(Rtimeline_get_item_start(tl, marker) * 100.0, 500.0);
+	Rtimeline_select(tl, marker, R_FALSE);
+	Rwidget_focus(tl);
+	g_marker_removed = 0;
+	press_key(window, R_KEY_DELETE, 0);
+	if (locked) CHECK(g_marker_removed == 0 && Rtimeline_get_item_type(tl, marker) == R_TIMELINE_MARKER);
+	else CHECK(g_marker_removed == 1 && Rtimeline_get_item_type(tl, marker) == R_TIMELINE_NONE);
+}
+
+static const char g_markers_xml[] = "<Window Width=\"900\" Height=\"700\"><VBox>"
+	"<Timeline Name=\"a\" Duration=\"10\" HeaderWidth=\"100\" Height=\"200\"><Track Name=\"T\"/><Marker Time=\"3\" Label=\"m\"/></Timeline>"
+	"<Timeline Name=\"b\" Duration=\"10\" HeaderWidth=\"100\" Height=\"200\" MarkersLocked=\"%s\"><Track Name=\"T\"/><Marker Time=\"3\" Label=\"m\"/></Timeline>"
+	"</VBox></Window>";
+
+/* (test_timeline_markers_default) a timeline that leaves the option alone drags and deletes its markers */
+static void test_timeline_markers_default(void) {
+	char xml[1024];
+	Rid window;
+	CHECK(test_init(0));
+	snprintf(xml, sizeof(xml), g_markers_xml, "false");
+	window = make_window(xml);
+	check_marker_gesture(window, Rwidget_find(window, "a"), R_FALSE);
+	check_marker_gesture(window, Rwidget_find(window, "b"), R_FALSE);
+	Rshutdown();
+}
+
+/* (test_timeline_markers_per_timeline) the option is one timeline's: set in XML or from C, the other is not touched */
+static void test_timeline_markers_per_timeline(void) {
+	char xml[1024];
+	Rid window, a, b;
+	CHECK(test_init(0));
+	snprintf(xml, sizeof(xml), g_markers_xml, "true");
+	window = make_window(xml);
+	a = Rwidget_find(window, "a");
+	b = Rwidget_find(window, "b");
+	check_marker_gesture(window, a, R_FALSE);
+	check_marker_gesture(window, b, R_TRUE);
+	/* from C, the other way round, on markers that are still there */
+	Rtimeline_add_marker(a, 3.0, "m");
+	Rtimeline_set_markers_locked(a, R_TRUE);
+	Rtimeline_set_markers_locked(b, R_FALSE);
+	check_marker_gesture(window, a, R_TRUE);
+	check_marker_gesture(window, b, R_FALSE);
+	Rshutdown();
+}
+
 /* The sizes of the timeline follow the theme and the text scale, or what the application sets. */
 static void test_timeline_sizes(void) {
 	Rid window, tl;
@@ -1216,6 +1291,8 @@ int main(void) {
 	RUN(test_color_picker);
 	RUN(test_timeline);
 	RUN(test_timeline_sizes);
+	RUN(test_timeline_markers_default);
+	RUN(test_timeline_markers_per_timeline);
 	RUN(test_node_graph);
 	RUN(test_zoomed_content);
 	RUN(test_blur_and_transparency);

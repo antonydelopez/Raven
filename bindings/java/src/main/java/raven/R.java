@@ -4739,6 +4739,29 @@ public final class R {
     }
 
     /**
+     * Called while a clip is painted, after its body and before its name: draw inside it (a filmstrip, a waveform).
+     * (x, y, width, height) is the clip's whole rectangle in the timeline's own units (part of it may be off screen:
+     * the painter is already clipped to the visible part). Use Rtimeline_get_item_start/length for the times it covers.
+     */
+    @FunctionalInterface
+    public interface RTimelineClipPaintCallback {
+        void invoke(int timeline, int item, MemorySegment painter, float x, float y, float width, float height, MemorySegment user_data);
+    }
+
+    private static void RTimelineClipPaintCallback$raw(RTimelineClipPaintCallback f, int timeline, int item, MemorySegment painter, float x, float y, float width, float height, MemorySegment user_data) {
+        try {
+            f.invoke(timeline, item, painter, x, y, width, height, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RTimelineClipPaintCallback f) {
+        return stub(f, RTimelineClipPaintCallback.class, "RTimelineClipPaintCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, ADDRESS));
+    }
+
+    /**
      * Asked when the user is about to link two pins that may be
      * linked: return R_FALSE to refuse (a loop, a rule of the application).
      */
@@ -15328,6 +15351,21 @@ public final class R {
         }
     }
 
+    private static MethodHandle Risland_set_calm$;
+
+    /**
+     * R_TRUE: the island opens with the smooth motion, without the bounce at the end (default R_FALSE: it bounces).
+     */
+    public static void Risland_set_calm(int island, int calm) {
+        MethodHandle $h = Risland_set_calm$;
+        if ($h == null) Risland_set_calm$ = $h = find("Risland_set_calm", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(island, calm);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Risland_set_attached$;
 
     /**
@@ -16078,6 +16116,34 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rtimeline_set_markers_locked$;
+
+    /**
+     * R_TRUE: this timeline's markers are neither dragged nor removed with Delete (MarkersLocked in XML). R_FALSE by default.
+     */
+    public static void Rtimeline_set_markers_locked(int timeline, int locked) {
+        MethodHandle $h = Rtimeline_set_markers_locked$;
+        if ($h == null) Rtimeline_set_markers_locked$ = $h = find("Rtimeline_set_markers_locked", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(timeline, locked);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtimeline_get_markers_locked$;
+
+    public static int Rtimeline_get_markers_locked(int timeline) {
+        MethodHandle $h = Rtimeline_get_markers_locked$;
+        if ($h == null) Rtimeline_get_markers_locked$ = $h = find("Rtimeline_get_markers_locked", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(timeline);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rtimeline_set_view$;
 
     /**
@@ -16767,6 +16833,22 @@ public final class R {
 
     public static void Rtimeline_set_time_callback(int timeline, RTimelineTimeCallback callback) {
         Rtimeline_set_time_callback(timeline, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rtimeline_set_clip_paint_callback$;
+
+    public static void Rtimeline_set_clip_paint_callback(int timeline, RTimelineClipPaintCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rtimeline_set_clip_paint_callback$;
+        if ($h == null) Rtimeline_set_clip_paint_callback$ = $h = find("Rtimeline_set_clip_paint_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(timeline, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rtimeline_set_clip_paint_callback(int timeline, RTimelineClipPaintCallback callback) {
+        Rtimeline_set_clip_paint_callback(timeline, callback, (MemorySegment) null);
     }
 
     private static MethodHandle Rtimeline_set_changed_callback$;
@@ -21400,6 +21482,22 @@ public final class R {
         try {
             int $r = (int) $h.invokeExact();
             return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rhost_window_set_native_for_next$;
+
+    /**
+     * changed by kit: the next host window created presents to this surface (Wayland: display =
+     * wl_display*, surface = wl_surface*) instead of a headless one. `transparent`: premultiplied alpha.
+     */
+    public static void Rhost_window_set_native_for_next(int system, MemorySegment display, long surface, int transparent) {
+        MethodHandle $h = Rhost_window_set_native_for_next$;
+        if ($h == null) Rhost_window_set_native_for_next$ = $h = find("Rhost_window_set_native_for_next", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, JAVA_LONG, JAVA_INT));
+        try {
+            $h.invokeExact(system, (MemorySegment) (display == null ? MemorySegment.NULL : display), surface, transparent);
         } catch (Throwable $t) {
             throw fail($t);
         }
