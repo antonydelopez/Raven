@@ -1153,6 +1153,7 @@ static int rvn_tl_toggle_at(const rvn_timeline_t* tl, const rvn_tl_layout_t* lay
 }
 
 static int rvn_tl_item_locked(rvn_timeline_t* tl, const rvn_tl_item_t* item) {
+	if (item->type == R_TIMELINE_MARKER) return 1; /* kit-proto: a marker only names a place; it is never dragged */
 	const rvn_tl_track_t* track = rvn_tl_track(tl, item->track);
 	return track && track->locked;
 }
