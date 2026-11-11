@@ -2363,6 +2363,14 @@ def _adapt_RTimelineItemCallback(function):
         function(timeline, item, user_data)
     return call
 
+RTimelineClipPaintCallback = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_int, ctypes.c_void_p, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_void_p)
+
+
+def _adapt_RTimelineClipPaintCallback(function):
+    def call(timeline, item, painter, x, y, width, height, user_data):
+        function(timeline, item, painter, x, y, width, height, user_data)
+    return call
+
 RNodeGraphConnectCallback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_uint32, ctypes.c_int, ctypes.c_int, ctypes.c_void_p)
 
 
@@ -9183,6 +9191,15 @@ def Risland_set_expand_on_click(island, enabled):
     _lib.Risland_set_expand_on_click(island, enabled)
 
 
+_lib.Risland_set_calm.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Risland_set_calm.restype = None
+
+
+def Risland_set_calm(island, calm):
+    """R_TRUE: the island opens with the smooth motion, without the bounce at the end (default R_FALSE: it bounces)."""
+    _lib.Risland_set_calm(island, calm)
+
+
 _lib.Risland_set_attached.argtypes = [ctypes.c_uint32, ctypes.c_int]
 _lib.Risland_set_attached.restype = None
 
@@ -9646,6 +9663,23 @@ def Rtimeline_set_snapping(timeline, enabled):
     _lib.Rtimeline_set_snapping(timeline, enabled)
 
 
+_lib.Rtimeline_set_markers_locked.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtimeline_set_markers_locked.restype = None
+
+
+def Rtimeline_set_markers_locked(timeline, locked):
+    """R_TRUE: this timeline's markers are neither dragged nor removed with Delete (MarkersLocked in XML). R_FALSE by default."""
+    _lib.Rtimeline_set_markers_locked(timeline, locked)
+
+
+_lib.Rtimeline_get_markers_locked.argtypes = [ctypes.c_uint32]
+_lib.Rtimeline_get_markers_locked.restype = ctypes.c_int
+
+
+def Rtimeline_get_markers_locked(timeline):
+    return _lib.Rtimeline_get_markers_locked(timeline)
+
+
 _lib.Rtimeline_set_view.argtypes = [ctypes.c_uint32, ctypes.c_double, ctypes.c_double]
 _lib.Rtimeline_set_view.restype = None
 
@@ -10058,6 +10092,14 @@ _lib.Rtimeline_set_time_callback.restype = None
 
 def Rtimeline_set_time_callback(timeline, callback, user_data=None):
     _lib.Rtimeline_set_time_callback(timeline, _callback(RTimelineTimeCallback, _adapt_RTimelineTimeCallback, callback), user_data)
+
+
+_lib.Rtimeline_set_clip_paint_callback.argtypes = [ctypes.c_uint32, RTimelineClipPaintCallback, ctypes.c_void_p]
+_lib.Rtimeline_set_clip_paint_callback.restype = None
+
+
+def Rtimeline_set_clip_paint_callback(timeline, callback, user_data=None):
+    _lib.Rtimeline_set_clip_paint_callback(timeline, _callback(RTimelineClipPaintCallback, _adapt_RTimelineClipPaintCallback, callback), user_data)
 
 
 _lib.Rtimeline_set_changed_callback.argtypes = [ctypes.c_uint32, RTimelineItemCallback, ctypes.c_void_p]
@@ -12757,6 +12799,16 @@ _lib.Rhost_platform_is_active.restype = ctypes.c_int
 def Rhost_platform_is_active():
     """Returns: R_TRUE while the running library uses the host platform."""
     return _lib.Rhost_platform_is_active()
+
+
+_lib.Rhost_window_set_native_for_next.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int]
+_lib.Rhost_window_set_native_for_next.restype = None
+
+
+def Rhost_window_set_native_for_next(system, display, surface, transparent):
+    """changed by kit: the next host window created presents to this surface (Wayland: display =
+    wl_display*, surface = wl_surface*) instead of a headless one. `transparent`: premultiplied alpha."""
+    _lib.Rhost_window_set_native_for_next(int(system), display, surface, transparent)
 
 
 _lib.Rhost_window_set_size.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_int, ctypes.c_float]

@@ -34,6 +34,7 @@ option(RAVEN_REBUILD_SHADERS "Recompile the GLSL shaders (needs glslangValidator
 option(RAVEN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(RAVEN_MSVC_STATIC_RUNTIME "Visual C++: link the C runtime statically (/MT) instead of using its DLL (/MD)" OFF)
 set(RAVEN_PLATFORM "auto" CACHE STRING "Window system: auto, win32, x11, cocoa or null")
+option(RAVEN_KIT_TRACE "kit: compile the Vulkan swapchain trace (read from RAVEN_VK_TRACE at run time); off, a build carries no trace" OFF) # changed by kit
 option(RAVEN_WAYLAND "Linux and BSD: compile native Wayland beside X11 (nothing of Wayland is needed to build: its libraries are opened at run time)" ON)
 set_property(CACHE RAVEN_PLATFORM PROPERTY STRINGS auto win32 x11 cocoa null)
 
@@ -362,6 +363,9 @@ if(RAVEN_BACKEND_VULKAN)
 	endif()
 endif()
 
+if(RAVEN_KIT_TRACE) # changed by kit
+	list(APPEND RAVEN_DEFINITIONS RAVEN_KIT_TRACE)
+endif()
 if(RAVEN_WITH_SVG)
 	list(APPEND RAVEN_DEFINITIONS RAVEN_WITH_SVG)
 endif()

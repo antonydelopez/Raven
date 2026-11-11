@@ -2084,6 +2084,11 @@
 					"description": "Items snap to frames, to the playhead and to each other."
 				},
 				{
+					"name": "MarkersLocked",
+					"kind": "bool",
+					"description": "Markers are neither dragged nor removed with Delete."
+				},
+				{
 					"name": "ViewStart",
 					"kind": "number",
 					"description": "First second shown."

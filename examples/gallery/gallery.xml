@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kit gallery: widgets, animation, glass and a timeline on tabs. Edit this file while it runs: the window follows. -->
+<Window Title="Raven - kit gallery" Width="1100" Height="720" MinWidth="800" MinHeight="520">
+	<VBox>
+		<HBox Spacing="10" Slot.Padding="12,8">
+			<Label Text="Kit gallery" TextSize="18" Slot.VAlign="Center" Slot.Fill="1"/>
+			<Label Text="Dark glass" Slot.VAlign="Center"/>
+			<Checkbox Name="dark" Style="Switch" Checked="true" OnChanged="theme.toggle"/>
+			<Label Name="reload" Text="live reload: waiting for an edit" Opacity="0.6" Slot.VAlign="Center"/>
+		</HBox>
+		<TabView Name="tabs" Slot.Fill="1">
+			<ScrollBox Slot.Title="Controls">
+				<VBox Spacing="12" Slot.Padding="20">
+					<HBox Spacing="8">
+						<Button Text="Primary" Style="Primary"/><Button Text="Default"/><Button Text="Flat" Style="Flat"/><Button Text="Off" Enabled="false"/>
+					</HBox>
+					<HBox Spacing="18">
+						<Checkbox Text="Check" Checked="true"/><Checkbox Text="Radio" Style="Radio" Checked="true"/><Checkbox Text="Switch" Style="Switch" Checked="true"/>
+					</HBox>
+					<Slider Value="0.6" Width="420" Slot.HAlign="Left"/>
+					<ProgressBar Value="0.4" Width="420" Slot.HAlign="Left"/>
+					<HBox Spacing="8">
+						<TextInput Placeholder="Text" Width="200"/>
+						<ComboBox Items="One|Two|Three" Selected="0" Width="120"/>
+						<SpinBox Min="0" Max="100" Value="42" Width="90"/>
+						<ColorPicker Popup="true" Alpha="false" Color="#22D3EE"/>
+					</HBox>
+					<WrapBox Spacing="8">
+						<ListView Items="First|Second|Third|Fourth" Width="200" Height="130"/>
+						<TreeView Width="220" Height="130">
+							<Item Text="Project" Expanded="true"><Item Text="main.odin"/><Item Text="review.xml"/></Item>
+							<Item Text="Assets"/>
+						</TreeView>
+					</WrapBox>
+				</VBox>
+			</ScrollBox>
+
+			<Splitter Slot.Title="Text">
+				<TextEditor Name="editor" Markdown="true" Wrap="true" Slot.Fill="1" Placeholder="Markdown, styled as you type"/>
+				<ScrollBox Slot.Fill="1"><Label Markdown="true" Wrap="true" Slot.Padding="18">## Transcript
+*Speaker 1*: the review comes **up on stop**.
+
+- sequences
+- transcript
+- exports</Label></ScrollBox>
+			</Splitter>
+
+			<VBox Slot.Title="Timeline" Slot.Padding="14" Spacing="10">
+				<Label Text="Drag the clips; click the ruler" Opacity="0.6"/>
+				<Timeline Name="timeline" Duration="12" FrameRate="24" Time="2.5" Slot.Fill="1">
+					<Track Name="Screen" Color="#0A84FF">
+						<Clip Start="0" Length="3.5" Label="Sequence 1"/>
+						<Clip Start="4" Length="4" Label="Sequence 2"/>
+						<Clip Start="8.5" End="12" Label="Sequence 3"/>
+					</Track>
+					<Track Name="Voice" Color="#30D158">
+						<Clip Start="0.5" Length="5" Label="Speaker 1"/>
+						<Clip Start="5.5" Length="2" Label="Speaker 2"/>
+						<Key Time="8.5"/><Key Time="10" Label="Cut"/>
+					</Track>
+					<Marker Time="4" Label="Intro"/>
+				</Timeline>
+			</VBox>
+
+			<Overlay Slot.Title="Glass">
+				<ScrollBox><VBox Slot.Padding="40"><Label TextSize="34">Under the glass</Label><Label Wrap="true" Opacity="0.7">Everything floating is glass: it blurs and bends what scrolls behind it. Switch the theme to a glass look (Dark glass) for the full effect.</Label><Spacer Height="600"/></VBox></ScrollBox>
+				<Border Material="FrostedGlass" CornerRadius="28" Padding="16" Width="260" Shadow="28" Slot.HAlign="Left" Slot.VAlign="Top" Slot.Padding="18" Appear="FlyRight">
+					<VBox Spacing="10"><Label TextSize="20">Sequences</Label><ListView Items="Intro|Demo|Questions|Outro" Height="120"/><Slider Value="0.5"/></VBox>
+				</Border>
+				<Border Material="Glass" CornerRadius="100" Padding="10,8" Shadow="30" Slot.HAlign="Center" Slot.VAlign="Bottom" Slot.Padding="0,0,0,22" Appear="FlyUp" AppearDelay="0.2">
+					<HBox Spacing="10"><Button Text="Prev" Style="Flat"/><Button Text="Play" Style="Primary"/><Button Text="Next" Style="Flat"/><Slider Width="220" Slot.VAlign="Center" Value="0.3"/></HBox>
+				</Border>
+			</Overlay>
+
+			<VBox Slot.Title="Motion" Slot.Padding="20" Spacing="14">
+				<Label Text="Transitions" TextSize="20"/>
+				<HBox Spacing="14">
+					<Border Padding="20" CornerRadius="18" Background="#3B82F6" Appear="Pop"><Label Color="white">Pop</Label></Border>
+					<Border Padding="20" CornerRadius="18" Background="#8E4EC6" Appear="Drop" AppearDelay="0.1"><Label Color="white">Drop</Label></Border>
+					<Border Padding="20" CornerRadius="18" Background="#E5484D" Appear="FlyUp" AppearDelay="0.2"><Label Color="white">FlyUp</Label></Border>
+					<Border Padding="20" CornerRadius="18" Background="#46A758" Appear="Zoom" AppearDelay="0.3"><Label Color="white">Zoom</Label></Border>
+				</HBox>
+				<Label Opacity="0.6" Text="Re-select this tab to replay them"/>
+			</VBox>
+		</TabView>
+	</VBox>
+</Window>

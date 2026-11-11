@@ -305,6 +305,8 @@ extern "C" {
 	RAVEN_API void Risland_set_expand_on_hover(Rid island, int enabled);
 	/** @brief R_TRUE (default): a click on the island unfolds or folds it. */
 	RAVEN_API void Risland_set_expand_on_click(Rid island, int enabled);
+	/** @brief R_TRUE: the island opens with the smooth motion, without the bounce at the end (default R_FALSE: it bounces). */
+	RAVEN_API void Risland_set_calm(Rid island, int calm);
 	/**
 	 * @brief R_TRUE gives the island square upper corners: a notch that hangs
 	 * from the edge it touches, instead of a capsule that floats under it.

@@ -1,0 +1,27 @@
+# What gates every commit of the Raven fork -- `aidx commit --go` runs these on
+# the tree it would commit (odin:kit-overlay#raven-fork-gate). The fork is the
+# upstream library plus a pin: the gate is Raven's own CMake build and its own
+# ctest suites, nothing else.
+#
+# Where they run: on shk's builder (the forge), not on the laptop. The builder
+# has everything the default build needs (cmake, ninja, gcc, X11 and Wayland
+# client dev files, the Vulkan headers), measured 2026-11-08.
+checks_on = "builder"
+checks_here = []
+setup = []
+
+# Both entries build into build/gate, which .gitignore excludes (build/), so
+# the second finds what the first built. Order matters.
+checks = [
+  # The library, the examples, the tests and the tools, as a Release build with
+  # the default platform (X11 and native Wayland) and the Vulkan backend.
+  "cmake -S . -B build/gate -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build/gate",
+  # The suites: headless ones run on the null platform; test_render and
+  # test_wayland report themselves skipped where there is no GPU or compositor.
+  # One is left out because it is red on the fork's base 7dfc5e0 itself:
+  # odin:kit-overlay#raven-gate-excluded-tests-2026-11-08 says which and why,
+  # and that it goes back in the commit that fixes it (drop it from -E).
+  # binding_zig is red on upstream main 8c6770a itself on the builder (its check links libraven alone, without the Rhost_*
+  # functions the Zig binding declares; measured 2026-11-11 on a pure upstream checkout): left out until upstream fixes it.
+  "ctest --test-dir build/gate --output-on-failure -E '^(designer_folder|binding_zig)$'",
+]

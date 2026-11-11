@@ -1269,6 +1269,10 @@ RColorChangedCallback :: #type proc "c" (picker: Rid, r: f32, g: f32, b: f32, a:
 RTimelineTimeCallback :: #type proc "c" (timeline: Rid, seconds: f64, user_data: rawptr)
 // Something happened to an item; which thing depends on the function the callback was given to.
 RTimelineItemCallback :: #type proc "c" (timeline: Rid, item: i32, user_data: rawptr)
+// Called while a clip is painted, after its body and before its name: draw inside it (a filmstrip, a waveform).
+// (x, y, width, height) is the clip's whole rectangle in the timeline's own units (part of it may be off screen:
+// the painter is already clipped to the visible part). Use Rtimeline_get_item_start/length for the times it covers.
+RTimelineClipPaintCallback :: #type proc "c" (timeline: Rid, item: i32, painter: ^RPainter, x: f32, y: f32, width: f32, height: f32, user_data: rawptr)
 // Asked when the user is about to link two pins that may be
 // linked: return R_FALSE to refuse (a loop, a rule of the application).
 RNodeGraphConnectCallback :: #type proc "c" (graph: Rid, output_pin: i32, input_pin: i32, user_data: rawptr) -> i32
@@ -3315,6 +3319,8 @@ foreign lib {
 	Risland_set_expand_on_hover :: proc(island: Rid, enabled: i32) ---
 	// R_TRUE (default): a click on the island unfolds or folds it.
 	Risland_set_expand_on_click :: proc(island: Rid, enabled: i32) ---
+	// R_TRUE: the island opens with the smooth motion, without the bounce at the end (default R_FALSE: it bounces).
+	Risland_set_calm :: proc(island: Rid, calm: i32) ---
 	// R_TRUE gives the island square upper corners: a notch that hangs
 	// from the edge it touches, instead of a capsule that floats under it.
 	Risland_set_attached :: proc(island: Rid, attached: i32) ---
@@ -3446,6 +3452,9 @@ foreign lib {
 	Rtimeline_get_frame_rate :: proc(timeline: Rid) -> f64 ---
 	// R_FALSE lets items be placed anywhere (holding Alt while dragging does it for one move).
 	Rtimeline_set_snapping :: proc(timeline: Rid, enabled: i32) ---
+	// R_TRUE: this timeline's markers are neither dragged nor removed with Delete (MarkersLocked in XML). R_FALSE by default.
+	Rtimeline_set_markers_locked :: proc(timeline: Rid, locked: i32) ---
+	Rtimeline_get_markers_locked :: proc(timeline: Rid) -> i32 ---
 	// The part of the sequence that is shown. Zooming is showing less.
 	Rtimeline_set_view :: proc(timeline: Rid, start: f64, end: f64) ---
 	Rtimeline_get_view :: proc(timeline: Rid, start: ^f64, end: ^f64) ---
@@ -3528,6 +3537,7 @@ foreign lib {
 	Rtimeline_get_selection_count :: proc(timeline: Rid) -> i32 ---
 	Rtimeline_get_selected :: proc(timeline: Rid, index: i32) -> i32 ---
 	Rtimeline_set_time_callback :: proc(timeline: Rid, callback: RTimelineTimeCallback, user_data: rawptr) ---
+	Rtimeline_set_clip_paint_callback :: proc(timeline: Rid, callback: RTimelineClipPaintCallback, user_data: rawptr) ---
 	// Called for each item the user moved, stretched or retimed, as
 	// it happens. The action of the widget (OnChanged in XML) fires once
 	// per gesture, when the button is released.
@@ -4141,6 +4151,9 @@ foreign lib {
 	Rhost_platform_register :: proc(desc: ^RHostPlatformDesc) ---
 	// Returns: R_TRUE while the running library uses the host platform.
 	Rhost_platform_is_active :: proc() -> i32 ---
+	// changed by kit: the next host window created presents to this surface (Wayland: display =
+	// wl_display*, surface = wl_surface*) instead of a headless one. `transparent`: premultiplied alpha.
+	Rhost_window_set_native_for_next :: proc(system: RWindowSystem, display: rawptr, surface: uintptr, transparent: i32) ---
 	// Size of a host window in pixels, and pixels per logical unit.
 	Rhost_window_set_size :: proc(window: Rid, width: i32, height: i32, scale: f32) ---
 	Rhost_inject_mouse_move :: proc(window: Rid, x: i32, y: i32, modifiers: u32) ---

@@ -1346,6 +1346,12 @@ alias RTimelineTimeCallback = fn void(Rid timeline, double seconds, void* user_d
 <* Something happened to an item; which thing depends on the function the callback was given to. *>
 alias RTimelineItemCallback = fn void(Rid timeline, CInt item, void* user_data);
 <*
+ Called while a clip is painted, after its body and before its name: draw inside it (a filmstrip, a waveform).
+ (x, y, width, height) is the clip's whole rectangle in the timeline's own units (part of it may be off screen:
+ the painter is already clipped to the visible part). Use Rtimeline_get_item_start/length for the times it covers.
+*>
+alias RTimelineClipPaintCallback = fn void(Rid timeline, CInt item, RPainter* painter, float x, float y, float width, float height, void* user_data);
+<*
  Asked when the user is about to link two pins that may be
  linked: return R_FALSE to refuse (a loop, a rule of the application).
 *>
@@ -4345,6 +4351,9 @@ extern fn void r_island_set_expand_on_hover(Rid island, CInt enabled) @cname("Ri
 <* R_TRUE (default): a click on the island unfolds or folds it. *>
 extern fn void r_island_set_expand_on_click(Rid island, CInt enabled) @cname("Risland_set_expand_on_click");
 
+<* R_TRUE: the island opens with the smooth motion, without the bounce at the end (default R_FALSE: it bounces). *>
+extern fn void r_island_set_calm(Rid island, CInt calm) @cname("Risland_set_calm");
+
 <*
  R_TRUE gives the island square upper corners: a notch that hangs
  from the edge it touches, instead of a capsule that floats under it.
@@ -4554,6 +4563,11 @@ extern fn double r_timeline_get_frame_rate(Rid timeline) @cname("Rtimeline_get_f
 <* R_FALSE lets items be placed anywhere (holding Alt while dragging does it for one move). *>
 extern fn void r_timeline_set_snapping(Rid timeline, CInt enabled) @cname("Rtimeline_set_snapping");
 
+<* R_TRUE: this timeline's markers are neither dragged nor removed with Delete (MarkersLocked in XML). R_FALSE by default. *>
+extern fn void r_timeline_set_markers_locked(Rid timeline, CInt locked) @cname("Rtimeline_set_markers_locked");
+
+extern fn CInt r_timeline_get_markers_locked(Rid timeline) @cname("Rtimeline_get_markers_locked");
+
 <* The part of the sequence that is shown. Zooming is showing less. *>
 extern fn void r_timeline_set_view(Rid timeline, double start, double end) @cname("Rtimeline_set_view");
 
@@ -4688,6 +4702,8 @@ extern fn CInt r_timeline_get_selection_count(Rid timeline) @cname("Rtimeline_ge
 extern fn CInt r_timeline_get_selected(Rid timeline, CInt index) @cname("Rtimeline_get_selected");
 
 extern fn void r_timeline_set_time_callback(Rid timeline, RTimelineTimeCallback callback, void* user_data) @cname("Rtimeline_set_time_callback");
+
+extern fn void r_timeline_set_clip_paint_callback(Rid timeline, RTimelineClipPaintCallback callback, void* user_data) @cname("Rtimeline_set_clip_paint_callback");
 
 <*
  Called for each item the user moved, stretched or retimed, as
@@ -5679,6 +5695,12 @@ extern fn void r_host_platform_register(RHostPlatformDesc* desc) @cname("Rhost_p
 
 <* Returns R_TRUE while the running library uses the host platform. *>
 extern fn CInt r_host_platform_is_active() @cname("Rhost_platform_is_active");
+
+<*
+ changed by kit: the next host window created presents to this surface (Wayland: display =
+ wl_display*, surface = wl_surface*) instead of a headless one. `transparent`: premultiplied alpha.
+*>
+extern fn void r_host_window_set_native_for_next(RWindowSystem system, void* display, uptr surface, CInt transparent) @cname("Rhost_window_set_native_for_next");
 
 <* Size of a host window in pixels, and pixels per logical unit. *>
 extern fn void r_host_window_set_size(Rid window, CInt width, CInt height, float scale) @cname("Rhost_window_set_size");

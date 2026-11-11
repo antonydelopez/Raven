@@ -1259,6 +1259,10 @@ pub const RColorChangedCallback = ?*const fn (picker: Rid, r: f32, g: f32, b: f3
 pub const RTimelineTimeCallback = ?*const fn (timeline: Rid, seconds: f64, user_data: ?*anyopaque) callconv(.c) void;
 /// Something happened to an item; which thing depends on the function the callback was given to.
 pub const RTimelineItemCallback = ?*const fn (timeline: Rid, item: c_int, user_data: ?*anyopaque) callconv(.c) void;
+/// Called while a clip is painted, after its body and before its name: draw inside it (a filmstrip, a waveform).
+/// (x, y, width, height) is the clip's whole rectangle in the timeline's own units (part of it may be off screen:
+/// the painter is already clipped to the visible part). Use Rtimeline_get_item_start/length for the times it covers.
+pub const RTimelineClipPaintCallback = ?*const fn (timeline: Rid, item: c_int, painter: ?*RPainter, x: f32, y: f32, width: f32, height: f32, user_data: ?*anyopaque) callconv(.c) void;
 /// Asked when the user is about to link two pins that may be
 /// linked: return R_FALSE to refuse (a loop, a rule of the application).
 pub const RNodeGraphConnectCallback = ?*const fn (graph: Rid, output_pin: c_int, input_pin: c_int, user_data: ?*anyopaque) callconv(.c) c_int;
@@ -3303,6 +3307,8 @@ pub extern fn Risland_expand_for(island: Rid, seconds: f64) void;
 pub extern fn Risland_set_expand_on_hover(island: Rid, enabled: c_int) void;
 /// R_TRUE (default): a click on the island unfolds or folds it.
 pub extern fn Risland_set_expand_on_click(island: Rid, enabled: c_int) void;
+/// R_TRUE: the island opens with the smooth motion, without the bounce at the end (default R_FALSE: it bounces).
+pub extern fn Risland_set_calm(island: Rid, calm: c_int) void;
 /// R_TRUE gives the island square upper corners: a notch that hangs
 /// from the edge it touches, instead of a capsule that floats under it.
 pub extern fn Risland_set_attached(island: Rid, attached: c_int) void;
@@ -3434,6 +3440,9 @@ pub extern fn Rtimeline_set_frame_rate(timeline: Rid, frames_per_second: f64) vo
 pub extern fn Rtimeline_get_frame_rate(timeline: Rid) f64;
 /// R_FALSE lets items be placed anywhere (holding Alt while dragging does it for one move).
 pub extern fn Rtimeline_set_snapping(timeline: Rid, enabled: c_int) void;
+/// R_TRUE: this timeline's markers are neither dragged nor removed with Delete (MarkersLocked in XML). R_FALSE by default.
+pub extern fn Rtimeline_set_markers_locked(timeline: Rid, locked: c_int) void;
+pub extern fn Rtimeline_get_markers_locked(timeline: Rid) c_int;
 /// The part of the sequence that is shown. Zooming is showing less.
 pub extern fn Rtimeline_set_view(timeline: Rid, start: f64, end: f64) void;
 pub extern fn Rtimeline_get_view(timeline: Rid, start: ?*f64, end: ?*f64) void;
@@ -3516,6 +3525,7 @@ pub extern fn Rtimeline_is_selected(timeline: Rid, item: c_int) c_int;
 pub extern fn Rtimeline_get_selection_count(timeline: Rid) c_int;
 pub extern fn Rtimeline_get_selected(timeline: Rid, index: c_int) c_int;
 pub extern fn Rtimeline_set_time_callback(timeline: Rid, callback: RTimelineTimeCallback, user_data: ?*anyopaque) void;
+pub extern fn Rtimeline_set_clip_paint_callback(timeline: Rid, callback: RTimelineClipPaintCallback, user_data: ?*anyopaque) void;
 /// Called for each item the user moved, stretched or retimed, as
 /// it happens. The action of the widget (OnChanged in XML) fires once
 /// per gesture, when the button is released.
@@ -4129,6 +4139,9 @@ pub extern fn Raccessibility_is_screen_reader_active() c_int;
 pub extern fn Rhost_platform_register(desc: ?*const RHostPlatformDesc) void;
 /// Returns: R_TRUE while the running library uses the host platform.
 pub extern fn Rhost_platform_is_active() c_int;
+/// changed by kit: the next host window created presents to this surface (Wayland: display =
+/// wl_display*, surface = wl_surface*) instead of a headless one. `transparent`: premultiplied alpha.
+pub extern fn Rhost_window_set_native_for_next(system: RWindowSystem, display: ?*anyopaque, surface: usize, transparent: c_int) void;
 /// Size of a host window in pixels, and pixels per logical unit.
 pub extern fn Rhost_window_set_size(window: Rid, width: c_int, height: c_int, scale: f32) void;
 pub extern fn Rhost_inject_mouse_move(window: Rid, x: c_int, y: c_int, modifiers: u32) void;

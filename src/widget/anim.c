@@ -215,6 +215,11 @@ int rvn_transition_begin(rvn_widget_t* widget, RPainter* painter, rvn_transition
 		case R_TRANSITION_POP: motion = R_MOTION_BOUNCY; break;
 		case R_TRANSITION_ZOOM: motion = R_MOTION_SMOOTH; break;
 		case R_TRANSITION_DROP: motion = R_MOTION_WOBBLY; break;
+		/* kit-proto: a sheet flying in settles without the bounce (upstream: a per-widget motion would be better than a fixed one) */
+		case R_TRANSITION_FLY_UP:
+		case R_TRANSITION_FLY_DOWN:
+		case R_TRANSITION_FLY_LEFT:
+		case R_TRANSITION_FLY_RIGHT: motion = R_MOTION_SMOOTH; break;
 		case R_TRANSITION_SLIDE_LEFT:
 		case R_TRANSITION_SLIDE_RIGHT: motion = R_MOTION_SNAPPY; break;
 		default: motion = R_MOTION_BOUNCY; break;

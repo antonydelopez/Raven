@@ -939,7 +939,7 @@ static void rvn_window_paint(rvn_window_t* window, RCapture* capture) {
 	}
 	for (i = 0; i < window->popup_count; i++) {
 		rvn_popup_t* popup = &window->popups[i];
-		float shown = rvn_paint_spring_from(&painter, &popup->shown, 1.0f, R_MOTION_BOUNCY);
+		float shown = rvn_paint_spring_from(&painter, &popup->shown, 1.0f, R_MOTION_SMOOTH); /* kit-proto: menus and popups open without the bounce */
 		if (popup->placement == RVN_POPUP_DIALOG) rvn_window_paint_dialog(window, &painter, popup->root, shown);
 		else rvn_window_paint_popup(&painter, popup->root, popup->anchor, shown);
 		widgets += popup->root->subtree_count;

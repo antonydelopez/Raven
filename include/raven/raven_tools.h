@@ -18,6 +18,7 @@
 #define RAVEN_TOOLS_H
 
 #include "raven_widget.h"
+#include "raven_draw.h" /* RPainter, for a timeline clip's paint callback */
 
 
 #ifdef __cplusplus
@@ -194,6 +195,9 @@ extern "C" {
 	RAVEN_API double Rtimeline_get_frame_rate(Rid timeline);
 	/** @brief R_FALSE lets items be placed anywhere (holding Alt while dragging does it for one move). */
 	RAVEN_API void Rtimeline_set_snapping(Rid timeline, int enabled);
+	/** @brief R_TRUE: this timeline's markers are neither dragged nor removed with Delete (MarkersLocked in XML). R_FALSE by default. */
+	RAVEN_API void Rtimeline_set_markers_locked(Rid timeline, int locked);
+	RAVEN_API int Rtimeline_get_markers_locked(Rid timeline);
 	/** @brief The part of the sequence that is shown. Zooming is showing less. */
 	RAVEN_API void Rtimeline_set_view(Rid timeline, double start, double end);
 	RAVEN_API void Rtimeline_get_view(Rid timeline, double* start, double* end);
@@ -307,6 +311,13 @@ extern "C" {
 	RAVEN_API void Rtimeline_set_time_callback(Rid timeline, RTimelineTimeCallback callback, void* user_data);
 	/** @brief Something happened to an item; which thing depends on the function the callback was given to. */
 	typedef void (*RTimelineItemCallback)(Rid timeline, int item, void* user_data);
+	/**
+	 * @brief Called while a clip is painted, after its body and before its name: draw inside it (a filmstrip, a waveform).
+	 * (x, y, width, height) is the clip's whole rectangle in the timeline's own units (part of it may be off screen:
+	 * the painter is already clipped to the visible part). Use Rtimeline_get_item_start/length for the times it covers.
+	 */
+	typedef void (*RTimelineClipPaintCallback)(Rid timeline, int item, RPainter* painter, float x, float y, float width, float height, void* user_data);
+	RAVEN_API void Rtimeline_set_clip_paint_callback(Rid timeline, RTimelineClipPaintCallback callback, void* user_data);
 	/**
 	 * @brief Called for each item the user moved, stretched or retimed, as
 	 * it happens. The action of the widget (OnChanged in XML) fires once

@@ -103,6 +103,8 @@ typedef struct rvn_timeline_t {
 	double time;
 	double fps;
 	int no_snapping;
+	/** Markers are neither dragged nor removed with Delete (R_FALSE by default). */
+	int markers_locked;
 	int playing;
 	int loop;
 	double view_start, view_span;
@@ -162,6 +164,8 @@ typedef struct rvn_timeline_t {
 	void* activated_user;
 	RTimelineItemCallback removed_callback;
 	void* removed_user;
+	RTimelineClipPaintCallback clip_paint;
+	void* clip_paint_user;
 } rvn_timeline_t;
 
 static const uint32_t g_tl_palette[] = { 0x0A84FF, 0xFF9F0A, 0x30D158, 0xBF5AF2, 0xFF375F, 0x64D2FF, 0xFFD60A, 0xAC8E68 };
@@ -798,6 +802,12 @@ static void rvn_tl_paint_clip(rvn_timeline_t* tl, RPainter* painter, const rvn_t
 		rvn_paint_box(painter, rect, radius, rvn_color_fade(color | 0xFF000000u, opacity), 0.0f, 0);
 		rvn_paint_pop_clip(painter);
 	}
+	if (tl->clip_paint) {
+		/* kit-proto: the app draws inside the clip (a filmstrip, a waveform): it gets the clip's whole rectangle, in the widget's own units */
+		rvn_paint_push_clip(painter, rvn_rect(rect.x, rect.y, rect.w, rect.h));
+		tl->clip_paint(tl->base.id, item->id, painter, rect.x, rect.y, rect.w, rect.h, tl->clip_paint_user);
+		rvn_paint_pop_clip(painter);
+	}
 	if (cl->border_width > 0.0f) rvn_paint_box(painter, rect, radius, 0, cl->border_width, rvn_color_fade(border, opacity));
 
 	if (item->label && rect.w > 26.0f) {
@@ -1145,6 +1155,7 @@ static int rvn_tl_toggle_at(const rvn_timeline_t* tl, const rvn_tl_layout_t* lay
 }
 
 static int rvn_tl_item_locked(rvn_timeline_t* tl, const rvn_tl_item_t* item) {
+	if (item->type == R_TIMELINE_MARKER && tl->markers_locked) return 1;
 	const rvn_tl_track_t* track = rvn_tl_track(tl, item->track);
 	return track && track->locked;
 }
@@ -1228,7 +1239,7 @@ static void rvn_tl_drag_move(rvn_widget_t* widget, const rvn_tl_layout_t* layout
 		const rvn_tl_item_t* item = &tl->items[i];
 		double room_before, room_after;
 		int row;
-		if (!item->selected) continue;
+		if (!item->selected || (item->type == R_TIMELINE_MARKER && tl->markers_locked)) continue;
 		room_before = -item->from_start;
 		room_after = tl->duration - (item->from_start + item->from_length);
 		if (first || room_before > low) low = room_before;
@@ -1249,7 +1260,8 @@ static void rvn_tl_drag_move(rvn_widget_t* widget, const rvn_tl_layout_t* layout
 		rvn_tl_item_t* item = &tl->items[i];
 		double start;
 		int track;
-		if (!item->selected) continue;
+		/* (a locked marker stays where it is) */
+		if (!item->selected || (item->type == R_TIMELINE_MARKER && tl->markers_locked)) continue;
 		start = item->from_start + delta;
 		track = item->from_track;
 		if (item->type != R_TIMELINE_MARKER && rows != 0) {
@@ -1829,6 +1841,9 @@ static int rvn_timeline_set_attribute(rvn_widget_t* widget, const char* name, co
 	} else if (RVN_ATTR("Snapping") || RVN_ATTR("Snap")) {
 		if (!rvn_parse_bool(value, &flag)) return R_FALSE;
 		tl->no_snapping = !flag;
+	} else if (RVN_ATTR("MarkersLocked")) {
+		if (!rvn_parse_bool(value, &flag)) return R_FALSE;
+		tl->markers_locked = flag;
 	} else if (RVN_ATTR("ViewStart")) {
 		if (!rvn_parse_float(value, &number)) return R_FALSE;
 		rvn_tl_set_view(tl, (double)number, tl->view_span, R_FALSE);
@@ -1976,6 +1991,16 @@ double Rtimeline_get_frame_rate(Rid id) {
 void Rtimeline_set_snapping(Rid id, int enabled) {
 	RVN_TIMELINE_VOID(tl, id);
 	tl->no_snapping = !enabled;
+}
+
+void Rtimeline_set_markers_locked(Rid id, int locked) {
+	RVN_TIMELINE_VOID(tl, id);
+	tl->markers_locked = locked ? R_TRUE : R_FALSE;
+}
+
+int Rtimeline_get_markers_locked(Rid id) {
+	RVN_TIMELINE(tl, id, R_FALSE);
+	return tl->markers_locked;
 }
 
 void Rtimeline_set_view(Rid id, double start, double end) {
@@ -2320,6 +2345,13 @@ void Rtimeline_set_time_callback(Rid id, RTimelineTimeCallback callback, void* u
 	RVN_TIMELINE_VOID(tl, id);
 	tl->time_callback = callback;
 	tl->time_user = user_data;
+}
+
+void Rtimeline_set_clip_paint_callback(Rid id, RTimelineClipPaintCallback callback, void* user_data) {
+	RVN_TIMELINE_VOID(tl, id);
+	tl->clip_paint = callback;
+	tl->clip_paint_user = user_data;
+	rvn_widget_invalidate_paint(&tl->base);
 }
 
 void Rtimeline_set_changed_callback(Rid id, RTimelineItemCallback callback, void* user_data) {

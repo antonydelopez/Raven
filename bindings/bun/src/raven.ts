@@ -873,6 +873,7 @@ const _symbols = {
 	Risland_expand_for: { args: ["u32", "f64"], returns: "void" },
 	Risland_set_expand_on_hover: { args: ["u32", "i32"], returns: "void" },
 	Risland_set_expand_on_click: { args: ["u32", "i32"], returns: "void" },
+	Risland_set_calm: { args: ["u32", "i32"], returns: "void" },
 	Risland_set_attached: { args: ["u32", "i32"], returns: "void" },
 	Risland_set_notch: { args: ["u32", "i32"], returns: "void" },
 	Risland_get_notch: { args: ["u32"], returns: "i32" },
@@ -918,6 +919,8 @@ const _symbols = {
 	Rtimeline_set_frame_rate: { args: ["u32", "f64"], returns: "void" },
 	Rtimeline_get_frame_rate: { args: ["u32"], returns: "f64" },
 	Rtimeline_set_snapping: { args: ["u32", "i32"], returns: "void" },
+	Rtimeline_set_markers_locked: { args: ["u32", "i32"], returns: "void" },
+	Rtimeline_get_markers_locked: { args: ["u32"], returns: "i32" },
 	Rtimeline_set_view: { args: ["u32", "f64", "f64"], returns: "void" },
 	Rtimeline_get_view: { args: ["u32", "ptr", "ptr"], returns: "void" },
 	Rtimeline_set_playing: { args: ["u32", "i32"], returns: "void" },
@@ -965,6 +968,7 @@ const _symbols = {
 	Rtimeline_get_selection_count: { args: ["u32"], returns: "i32" },
 	Rtimeline_get_selected: { args: ["u32", "i32"], returns: "i32" },
 	Rtimeline_set_time_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
+	Rtimeline_set_clip_paint_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
 	Rtimeline_set_changed_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
 	Rtimeline_set_selection_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
 	Rtimeline_set_activated_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
@@ -1256,6 +1260,7 @@ const _symbols = {
 	Raccessibility_is_screen_reader_active: { args: [], returns: "i32" },
 	Rhost_platform_register: { args: ["ptr"], returns: "void" },
 	Rhost_platform_is_active: { args: [], returns: "i32" },
+	Rhost_window_set_native_for_next: { args: ["i32", "ptr", "usize", "i32"], returns: "void" },
 	Rhost_window_set_size: { args: ["u32", "i32", "i32", "f32"], returns: "void" },
 	Rhost_inject_mouse_move: { args: ["u32", "i32", "i32", "u32"], returns: "void" },
 	Rhost_inject_mouse_button: { args: ["u32", "i32", "i32", "i32", "i32", "u32"], returns: "void" },
@@ -6040,6 +6045,26 @@ function _adapt_RTimelineItemCallback(function_: RTimelineItemCallback | Pointer
 }
 
 /**
+ * Called while a clip is painted, after its body and before its name: draw inside it (a filmstrip, a waveform).
+ * (x, y, width, height) is the clip's whole rectangle in the timeline's own units (part of it may be off screen:
+ * the painter is already clipped to the visible part). Use Rtimeline_get_item_start/length for the times it covers.
+ */
+export type RTimelineClipPaintCallback = (timeline: Rid, item: number, painter: Pointer | null, x: number, y: number, width: number, height: number, user_data: Pointer | null) => void;
+
+function _adapt_RTimelineClipPaintCallback(function_: RTimelineClipPaintCallback | Pointer | null, threadsafe = false): Pointer | null {
+	if (typeof function_ !== "function") {
+		return function_;
+	}
+	return _keep(new _JSCallback((timeline: number, item: number, painter: Pointer | null, x: number, y: number, width: number, height: number, user_data: Pointer | null): void => {
+		try {
+			function_(timeline, item, painter, x, y, width, height, user_data);
+		} catch (error) {
+			_report(error as Error);
+		}
+	}, { args: ["u32", "i32", "ptr", "f32", "f32", "f32", "f32", "ptr"], returns: "void", threadsafe }));
+}
+
+/**
  * Asked when the user is about to link two pins that may be
  * linked: return R_FALSE to refuse (a loop, a rule of the application).
  */
@@ -10402,6 +10427,11 @@ export function Risland_set_expand_on_click(island: Rid, enabled: number): void 
 	_lib.Risland_set_expand_on_click(island, enabled);
 }
 
+/** R_TRUE: the island opens with the smooth motion, without the bounce at the end (default R_FALSE: it bounces). */
+export function Risland_set_calm(island: Rid, calm: number): void {
+	_lib.Risland_set_calm(island, calm);
+}
+
 /**
  * R_TRUE gives the island square upper corners: a notch that hangs
  * from the edge it touches, instead of a capsule that floats under it.
@@ -10719,6 +10749,15 @@ export function Rtimeline_set_snapping(timeline: Rid, enabled: number): void {
 	_lib.Rtimeline_set_snapping(timeline, enabled);
 }
 
+/** R_TRUE: this timeline's markers are neither dragged nor removed with Delete (MarkersLocked in XML). R_FALSE by default. */
+export function Rtimeline_set_markers_locked(timeline: Rid, locked: number): void {
+	_lib.Rtimeline_set_markers_locked(timeline, locked);
+}
+
+export function Rtimeline_get_markers_locked(timeline: Rid): number {
+	return _lib.Rtimeline_get_markers_locked(timeline);
+}
+
 /** The part of the sequence that is shown. Zooming is showing less. */
 export function Rtimeline_set_view(timeline: Rid, start: number, end: number): void {
 	_lib.Rtimeline_set_view(timeline, start, end);
@@ -10949,6 +10988,10 @@ export function Rtimeline_get_selected(timeline: Rid, index: number): number {
 
 export function Rtimeline_set_time_callback(timeline: Rid, callback: RTimelineTimeCallback | Pointer | null, user_data: RPointer = null): void {
 	_lib.Rtimeline_set_time_callback(timeline, _adapt_RTimelineTimeCallback(callback), user_data);
+}
+
+export function Rtimeline_set_clip_paint_callback(timeline: Rid, callback: RTimelineClipPaintCallback | Pointer | null, user_data: RPointer = null): void {
+	_lib.Rtimeline_set_clip_paint_callback(timeline, _adapt_RTimelineClipPaintCallback(callback), user_data);
 }
 
 /**
@@ -12588,6 +12631,14 @@ export function Rhost_platform_register(desc: RHostPlatformDesc | null): void {
 /** Returns: R_TRUE while the running library uses the host platform. */
 export function Rhost_platform_is_active(): number {
 	return _lib.Rhost_platform_is_active();
+}
+
+/**
+ * changed by kit: the next host window created presents to this surface (Wayland: display =
+ * wl_display*, surface = wl_surface*) instead of a headless one. `transparent`: premultiplied alpha.
+ */
+export function Rhost_window_set_native_for_next(system: RWindowSystem, display: RPointer, surface: number, transparent: number): void {
+	_lib.Rhost_window_set_native_for_next(system, display, surface, transparent);
 }
 
 /** Size of a host window in pixels, and pixels per logical unit. */

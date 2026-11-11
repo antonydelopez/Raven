@@ -40,6 +40,12 @@ extern "C" {
 	/** @return R_TRUE while the running library uses the host platform. */
 	RAVEN_API int Rhost_platform_is_active(void);
 
+	/**
+	 * @brief changed by kit: the next host window created presents to this surface (Wayland: display =
+	 * wl_display*, surface = wl_surface*) instead of a headless one. `transparent`: premultiplied alpha.
+	 */
+	RAVEN_API void Rhost_window_set_native_for_next(RWindowSystem system, void* display, uintptr_t surface, int transparent);
+
 	/** @brief Size of a host window in pixels, and pixels per logical unit. */
 	RAVEN_API void Rhost_window_set_size(Rid window, int width, int height, float scale);
 	RAVEN_API void Rhost_inject_mouse_move(Rid window, int x, int y, Ruint modifiers);
