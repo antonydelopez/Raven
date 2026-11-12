@@ -130,6 +130,8 @@ static rw_view_t* g_rw_views = NULL;
 /** Who answers a file picker, and who gives the image on the clipboard (NULL: Raven's dialog, the system clipboard). */
 static RWebFileChooser g_rw_chooser = NULL;
 static void* g_rw_chooser_user = NULL;
+static RWebFileChooserOpen g_rw_chooser_open = NULL;
+static void* g_rw_chooser_open_user = NULL;
 static RWebClipboardImage g_rw_clip_image = NULL;
 static void* g_rw_clip_image_user = NULL;
 
@@ -597,10 +599,43 @@ static void rw_view_set_files(rw_view_t* view, long node, const char* lines) {
 }
 
 /* The user's answer is asked from a timer, not from inside the message of the browser: the dialog runs the loop meanwhile. */
+#define RW_CHOOSERS_MAX 8
+static rw_chooser_t* g_rw_chooser_pending[RW_CHOOSERS_MAX];
+static unsigned long g_rw_chooser_token[RW_CHOOSERS_MAX];
+static unsigned long g_rw_chooser_next = 0;
+
+void Rweb_file_chooser_answer(unsigned long token, const char* paths) {
+	int i;
+	for (i = 0; i < RW_CHOOSERS_MAX; i++) {
+		rw_chooser_t* chooser = g_rw_chooser_pending[i];
+		rw_view_t* view;
+		if (!chooser || g_rw_chooser_token[i] != token) continue;
+		g_rw_chooser_pending[i] = NULL;
+		/* (the view may be gone while the dialog was open) */
+		view = rw_view_by_widget(chooser->widget);
+		if (paths && paths[0] && view && Rwidget_is_valid(chooser->widget) && view->state != RW_STATE_FAILED) rw_view_set_files(view, chooser->node, paths);
+		rw_free(chooser);
+		return;
+	}
+}
+
 static void rw_chooser_timer(Rid timer, void* user_data) {
 	rw_chooser_t* chooser = (rw_chooser_t*)user_data;
 	rw_text_t paths;
 	(void)timer;
+	/* the application runs the dialog itself, without waiting here: it answers with Rweb_file_chooser_answer */
+	if (g_rw_chooser_open) {
+		int i;
+		for (i = 0; i < RW_CHOOSERS_MAX && g_rw_chooser_pending[i]; i++) {}
+		if (i < RW_CHOOSERS_MAX && rw_view_by_widget(chooser->widget) && Rwidget_is_valid(chooser->widget)) {
+			g_rw_chooser_pending[i] = chooser;
+			g_rw_chooser_token[i] = ++g_rw_chooser_next;
+			g_rw_chooser_open(chooser->widget, chooser->multiple, g_rw_chooser_token[i], g_rw_chooser_open_user);
+		} else {
+			rw_free(chooser);
+		}
+		return;
+	}
 	memset(&paths, 0, sizeof(paths));
 	if (rw_view_by_widget(chooser->widget) && Rwidget_is_valid(chooser->widget)) {
 		if (g_rw_chooser) {
@@ -1020,8 +1055,10 @@ static void rw_view_key(rw_view_t* view, const REvent* event, int down) {
 				command = "delete";
 				break;
 			case R_KEY_V: {
-				const char* text = Rclipboard_get_text();
-				if ((!text || !text[0]) && rw_view_paste_clipboard_image(view)) return;
+				const char* text;
+				/* an image on the system clipboard comes first: Raven's own clipboard may still hold the text copied earlier in the application */
+				if (rw_view_paste_clipboard_image(view)) return;
+				text = Rclipboard_get_text();
 				if (text && text[0]) {
 					memset(&params, 0, sizeof(params));
 					rw_text_puts(&params, "{\"text\":");
@@ -1471,6 +1508,11 @@ static int rw_xml_attribute(Rid widget, const char* name, const char* value, voi
 
 void Rweb_register_xml(void) {
 	Rxml_register_tag("WebView", rw_xml_create, rw_xml_attribute, NULL);
+}
+
+void Rweb_set_file_chooser_open(RWebFileChooserOpen open, void* user_data) {
+	g_rw_chooser_open = open;
+	g_rw_chooser_open_user = user_data;
 }
 
 void Rweb_set_file_chooser(RWebFileChooser chooser, void* user_data) {

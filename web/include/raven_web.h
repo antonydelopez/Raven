@@ -215,6 +215,19 @@ extern "C" {
 	RAVEN_WEB_API void Rweb_set_file_chooser(RWebFileChooser chooser, void* user_data);
 
 	/**
+	 * @brief The application's own, asynchronous chooser: called when a page's
+	 * file picker opens, it must return at once (a dialog that nests the loop
+	 * would stop the application's own window, e.g. a layer-shell overlay that
+	 * a toplevel dialog sits under). The application later calls
+	 * Rweb_file_chooser_answer with the `token`. Takes precedence over the
+	 * synchronous chooser and the dialog. NULL: not used.
+	 */
+	typedef void (*RWebFileChooserOpen)(Rid view, int multiple, unsigned long token, void* user_data);
+	RAVEN_WEB_API void Rweb_set_file_chooser_open(RWebFileChooserOpen open, void* user_data);
+	/** @brief The answer to an opened chooser: the paths, one per line; NULL or "" for a cancel. Ignored when the view is gone. */
+	RAVEN_WEB_API void Rweb_file_chooser_answer(unsigned long token, const char* paths);
+
+	/**
 	 * @brief Gives the image on the clipboard that Ctrl+V pastes: the bytes of
 	 * its file (valid until the next call), its type in `mime` ("image/png"),
 	 * or NULL when there is none. By default the system clipboard is read

@@ -250,6 +250,14 @@ static const char* stub_chooser(Rid view, int multiple, void* user_data) {
 	return g_chooser_cancel ? NULL : g_picked_path;
 }
 
+static unsigned long g_open_token = 0;
+static int g_open_calls = 0;
+static void stub_open(Rid view, int multiple, unsigned long token, void* user_data) {
+	(void)view; (void)multiple; (void)user_data;
+	g_open_calls++;
+	g_open_token = token;
+}
+
 static int g_clip_calls = 0;
 static const void* stub_clipboard_image(size_t* size, const char** mime, void* user_data) {
 	(void)user_data;
@@ -313,7 +321,39 @@ static void test_files_into_pages(Rid window, Rid view) {
 	CHECK(g_logged == 0);
 	g_chooser_cancel = 0;
 
-	/* Ctrl+V with an image on the clipboard: a paste event with the image as a File */
+	/* the application's own asynchronous chooser: the hook returns at once, the files come with the answer later */
+	Rweb_set_file_chooser_open(stub_open, NULL);
+	g_log[0] = 0;
+	g_logged = 0;
+	click_at(window, x + 100.0f, y + 40.0f);
+	CHECK(pump(&g_open_calls, 1, 20.0));
+	CHECK(g_open_token != 0);
+	pump_for(0.5);
+	CHECK(g_logged == 0); /* nothing is answered until the application does */
+	/* (another file than the first: the input fires no change event for the very same one) */
+	{
+		char second[512];
+		snprintf(second, sizeof(second), "%s.second", g_picked_path);
+		CHECK(Rfile_write(second, "second file", 11));
+		Rweb_file_chooser_answer(g_open_token, second);
+	}
+	CHECK(pump(&g_logged, 1, 20.0));
+	CHECK(strstr(g_log, "\"kind\":\"picker\"") != NULL);
+	CHECK(strstr(g_log, ".second") != NULL);
+	/* a cancel: the page hears nothing; a stale token is ignored */
+	g_log[0] = 0;
+	g_logged = 0;
+	click_at(window, x + 100.0f, y + 40.0f);
+	CHECK(pump(&g_open_calls, 2, 20.0));
+	Rweb_file_chooser_answer(g_open_token, NULL);
+	Rweb_file_chooser_answer(g_open_token, g_picked_path);
+	pump_for(0.7);
+	CHECK(g_logged == 0);
+	Rweb_set_file_chooser_open(NULL, NULL);
+
+	/* Ctrl+V with an image on the clipboard: a paste event with the image as a File. Raven's own clipboard still holds text copied
+	   earlier in the application: the image wins */
+	Rclipboard_set_text("copied earlier");
 	Rweb_set_clipboard_image(stub_clipboard_image, NULL);
 	Rwidget_focus(view);
 	g_log[0] = 0;
