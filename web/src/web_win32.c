@@ -386,6 +386,13 @@ int rw_needs_no_sandbox(void) {
 	return 0;
 }
 
+uint8_t* rw_clipboard_image(size_t* size, char* mime, size_t mime_size) {
+	(void)mime;
+	(void)mime_size;
+	*size = 0;
+	return NULL;
+}
+
 #else
 typedef int rw_win32_unused_t;
 #endif /* _WIN32 */

@@ -67,6 +67,12 @@ char* rw_file_url(const char* path);
 /** R_TRUE when the browser must be told to run without its sandbox (root on Unix: it refuses to start otherwise). */
 int rw_needs_no_sandbox(void);
 
+/**
+ * An image the system clipboard holds (a screenshot), as the bytes of its file (rw_free), its type written
+ * into `mime`; NULL when there is none. Bounded in time. Only where the system has a tool for it (Wayland: wl-paste).
+ */
+uint8_t* rw_clipboard_image(size_t* size, char* mime, size_t mime_size);
+
 /* ---------------------------------------------------------------------------
  *  Memory and text (web_json.c)
  * ------------------------------------------------------------------------- */

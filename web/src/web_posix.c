@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <poll.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -325,6 +326,125 @@ char* rw_file_url(const char* path) {
 
 int rw_needs_no_sandbox(void) {
 	return geteuid() == 0;
+}
+
+
+/*
+ * Runs a program and returns what it writes, bounded in time and in size:
+ * the program is killed when it takes longer than `timeout_ms`. NULL when it
+ * could not run, did not succeed, or wrote nothing.
+ */
+static uint8_t* rw_run_capture(const char* const* arguments, size_t limit, int timeout_ms, size_t* size) {
+	int fds[2];
+	pid_t pid;
+	uint8_t* data = NULL;
+	size_t used = 0, capacity = 0;
+	struct timespec start, now;
+	int status = 0, ok = 1;
+
+	*size = 0;
+	if (pipe(fds) != 0) return NULL;
+	pid = fork();
+	if (pid < 0) {
+		close(fds[0]);
+		close(fds[1]);
+		return NULL;
+	}
+	if (pid == 0) {
+		int null = open("/dev/null", O_RDWR);
+		if (null >= 0) {
+			dup2(null, 0);
+			dup2(null, 2);
+		}
+		dup2(fds[1], 1);
+		close(fds[0]);
+		close(fds[1]);
+		execvp(arguments[0], (char* const*)arguments);
+		_exit(127);
+	}
+	close(fds[1]);
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	for (;;) {
+		struct pollfd waiting;
+		long elapsed;
+		int left;
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		elapsed = (long)((now.tv_sec - start.tv_sec) * 1000 + (now.tv_nsec - start.tv_nsec) / 1000000);
+		left = timeout_ms - (int)elapsed;
+		if (left <= 0) {
+			ok = 0;
+			break;
+		}
+		waiting.fd = fds[0];
+		waiting.events = POLLIN;
+		waiting.revents = 0;
+		if (poll(&waiting, 1, left) < 0) {
+			if (errno == EINTR) continue;
+			ok = 0;
+			break;
+		}
+		if (waiting.revents & (POLLIN | POLLHUP)) {
+			uint8_t chunk[16384];
+			ssize_t count = read(fds[0], chunk, sizeof(chunk));
+			if (count < 0) {
+				if (errno == EINTR || errno == EAGAIN) continue;
+				ok = 0;
+				break;
+			}
+			if (count == 0) break;
+			if (used + (size_t)count > limit) {
+				ok = 0;
+				break;
+			}
+			if (used + (size_t)count + 1 > capacity) {
+				capacity = (used + (size_t)count + 1) * 2;
+				data = (uint8_t*)rw_realloc(data, capacity);
+				if (!data) {
+					ok = 0;
+					break;
+				}
+			}
+			memcpy(data + used, chunk, (size_t)count);
+			used += (size_t)count;
+		}
+	}
+	close(fds[0]);
+	if (!ok) kill(pid, SIGKILL);
+	while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+	if (!ok || !WIFEXITED(status) || WEXITSTATUS(status) != 0 || used == 0) {
+		rw_free(data);
+		return NULL;
+	}
+	data[used] = 0;
+	*size = used;
+	return data;
+}
+
+uint8_t* rw_clipboard_image(size_t* size, char* mime, size_t mime_size) {
+	static const char* const kinds[] = { "image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp" };
+	size_t listed = 0, i;
+	const char* list_command[] = { "wl-paste", "--list-types", NULL };
+	uint8_t* types;
+	uint8_t* data = NULL;
+	*size = 0;
+	if (!getenv("WAYLAND_DISPLAY")) return NULL;
+	types = rw_run_capture(list_command, 4096, 700, &listed);
+	if (!types) return NULL;
+	for (i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
+		const char* at = strstr((const char*)types, kinds[i]);
+		size_t length = strlen(kinds[i]);
+		/* (a whole line of the list: "image/png", not "image/png-x") */
+		if (at && (at == (const char*)types || at[-1] == '\n') && (at[length] == '\n' || at[length] == 0)) {
+			const char* command[] = { "wl-paste", "--no-newline", "--type", kinds[i], NULL };
+			data = rw_run_capture(command, 64u * 1024u * 1024u, 5000, size);
+			if (data) {
+				snprintf(mime, mime_size, "%s", kinds[i]);
+				break;
+			}
+		}
+	}
+	rw_free(types);
+	return data;
 }
 
 #else

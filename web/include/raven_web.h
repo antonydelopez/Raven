@@ -188,6 +188,41 @@ extern "C" {
 	 */
 	RAVEN_WEB_API void Rweb_view_set_event_callback(Rid view, RWebEventCallback callback, void* user_data);
 
+	/* ============================================================================
+	 *  FILES INTO PAGES
+	 *
+	 *  A page can ask for files three ways, and the browser behind a web view
+	 *  has no window to do it with. The view does it for the page:
+	 *    - the file picker (<input type=file>): Raven's file dialog opens and
+	 *      the files chosen reach the input, which fires its change event;
+	 *    - Ctrl+V with an image on the system clipboard (a screenshot): the
+	 *      page gets a paste event whose clipboardData holds the image as a
+	 *      File ("screenshot.png"); text still pastes as text;
+	 *    - files dropped on the view from the file manager: the page gets the
+	 *      drag and drop events, the drop's dataTransfer.files holding them.
+	 * ============================================================================ */
+
+	/**
+	 * @brief Chooses files for a page's file picker. Return the paths, one per
+	 * line, valid until the next call; NULL or "" when the user cancelled
+	 * (the page hears nothing). `multiple`: the input accepts several files.
+	 */
+	typedef const char* (*RWebFileChooser)(Rid view, int multiple, void* user_data);
+	/**
+	 * @brief Replaces Raven's file dialog as the answer to a file picker (for
+	 * tests, or an application with its own chooser). NULL: the dialog.
+	 */
+	RAVEN_WEB_API void Rweb_set_file_chooser(RWebFileChooser chooser, void* user_data);
+
+	/**
+	 * @brief Gives the image on the clipboard that Ctrl+V pastes: the bytes of
+	 * its file (valid until the next call), its type in `mime` ("image/png"),
+	 * or NULL when there is none. By default the system clipboard is read
+	 * (Wayland: wl-paste, bounded in time). NULL provider: that default.
+	 */
+	typedef const void* (*RWebClipboardImage)(size_t* size, const char** mime, void* user_data);
+	RAVEN_WEB_API void Rweb_set_clipboard_image(RWebClipboardImage provider, void* user_data);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

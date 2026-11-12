@@ -127,6 +127,12 @@ typedef struct rw_view_t {
 
 static rw_view_t* g_rw_views = NULL;
 
+/** Who answers a file picker, and who gives the image on the clipboard (NULL: Raven's dialog, the system clipboard). */
+static RWebFileChooser g_rw_chooser = NULL;
+static void* g_rw_chooser_user = NULL;
+static RWebClipboardImage g_rw_clip_image = NULL;
+static void* g_rw_clip_image_user = NULL;
+
 /** What every page gets before its own scripts run: window.raven.postMessage. */
 static const char g_rw_bridge[] =
 	"(function(){ if (window.raven) return;"
@@ -307,6 +313,8 @@ static void rw_view_attached(rw_view_t* view) {
 	view->setup_left = 0;
 	rw_view_setup(view, "Page.enable", NULL);
 	rw_view_setup(view, "Runtime.enable", NULL);
+	/* a headless browser opens no file chooser: it tells, and the view answers (rw_view_chooser) */
+	rw_view_setup(view, "Page.setInterceptFileChooserDialog", "{\"enabled\":true}");
 	rw_view_setup(view, "Runtime.addBinding", "{\"name\":\"ravenPostMessage\"}");
 	memset(&params, 0, sizeof(params));
 	rw_text_puts(&params, "{\"source\":");
@@ -551,6 +559,89 @@ static void rw_answer(rw_view_t* view, rw_request_t* request, const rw_json_t* m
 	}
 }
 
+/* ---------------------------------------------------------------------------
+ *  Files into the page: the picker
+ * ------------------------------------------------------------------------- */
+
+typedef struct rw_chooser_t {
+	Rid widget;
+	int multiple;
+	long node;
+} rw_chooser_t;
+
+/* Answers a file picker of the page with the paths (one per line). */
+static void rw_view_set_files(rw_view_t* view, long node, const char* lines) {
+	rw_text_t params;
+	const char* line = lines;
+	int count = 0;
+	memset(&params, 0, sizeof(params));
+	rw_text_puts(&params, "{\"files\":[");
+	while (line && *line) {
+		size_t length = strcspn(line, "\n");
+		if (length > 0) {
+			char* path = (char*)rw_alloc(length + 1);
+			if (path) {
+				memcpy(path, line, length);
+				path[length] = 0;
+				if (count++) rw_text_puts(&params, ",");
+				rw_text_json(&params, path);
+				rw_free(path);
+			}
+		}
+		line += length;
+		if (*line == '\n') line++;
+	}
+	rw_text_printf(&params, "],\"backendNodeId\":%ld}", node);
+	if (count > 0) rw_view_send(view, "DOM.setFileInputFiles", params.data, RW_KIND_NONE, NULL, NULL);
+	rw_text_free(&params);
+}
+
+/* The user's answer is asked from a timer, not from inside the message of the browser: the dialog runs the loop meanwhile. */
+static void rw_chooser_timer(Rid timer, void* user_data) {
+	rw_chooser_t* chooser = (rw_chooser_t*)user_data;
+	rw_text_t paths;
+	(void)timer;
+	memset(&paths, 0, sizeof(paths));
+	if (rw_view_by_widget(chooser->widget) && Rwidget_is_valid(chooser->widget)) {
+		if (g_rw_chooser) {
+			const char* answer = g_rw_chooser(chooser->widget, chooser->multiple, g_rw_chooser_user);
+			if (answer) rw_text_puts(&paths, answer);
+		} else {
+			RFileDialogDesc desc;
+			memset(&desc, 0, sizeof(desc));
+			desc.parent = Rwidget_get_window(chooser->widget);
+			desc.flags = chooser->multiple ? R_FILE_DIALOG_MULTIPLE : 0;
+			if (Rfile_dialog_open(&desc)) {
+				int i;
+				for (i = 0; i < Rfile_dialog_get_result_count(); i++) {
+					rw_text_puts(&paths, Rfile_dialog_get_result(i));
+					rw_text_puts(&paths, "\n");
+				}
+			}
+		}
+		/* (the view may be gone after the dialog) */
+		if (paths.data && paths.data[0]) {
+			rw_view_t* view = rw_view_by_widget(chooser->widget);
+			if (view && view->state != RW_STATE_FAILED) rw_view_set_files(view, chooser->node, paths.data);
+		}
+	}
+	rw_text_free(&paths);
+	rw_free(chooser);
+}
+
+static void rw_view_file_chooser(rw_view_t* view, const rw_json_t* params) {
+	rw_chooser_t* chooser;
+	const char* mode = rw_json_string(params, "mode", "selectSingle");
+	/* (no node: nothing to give the files to) */
+	if (!rw_json_get(params, "backendNodeId")) return;
+	chooser = (rw_chooser_t*)rw_alloc(sizeof(rw_chooser_t));
+	if (!chooser) return;
+	chooser->widget = view->widget;
+	chooser->multiple = strcmp(mode, "selectMultiple") == 0;
+	chooser->node = (long)rw_json_number(params, "backendNodeId", 0.0);
+	Rtimer_create(0.01, R_FALSE, rw_chooser_timer, chooser);
+}
+
 static void rw_event(rw_view_t* view, const char* method, const rw_json_t* params) {
 	if (strcmp(method, "Page.frameStartedLoading") == 0) {
 		if (view->html_write && view->target && strcmp(rw_json_string(params, "frameId", ""), view->target) == 0) view->html_started = 1;
@@ -586,6 +677,8 @@ static void rw_event(rw_view_t* view, const char* method, const rw_json_t* param
 	} else if (strcmp(method, "Page.javascriptDialogOpening") == 0) {
 		/* alert, confirm, prompt: nobody can see them; they are accepted so that the page goes on */
 		rw_view_send(view, "Page.handleJavaScriptDialog", "{\"accept\":true}", RW_KIND_NONE, NULL, NULL);
+	} else if (strcmp(method, "Page.fileChooserOpened") == 0) {
+		rw_view_file_chooser(view, params);
 	} else if (strcmp(method, "Page.windowOpen") == 0) {
 		/* a link that asks for a new window opens here */
 		const char* url = rw_json_string(params, "url", NULL);
@@ -778,6 +871,109 @@ static const rw_key_t g_rw_keys[] = {
 	{ R_KEY_F9, 120, "F9", "F9" }, { R_KEY_F10, 121, "F10", "F10" }, { R_KEY_F11, 122, "F11", "F11" }, { R_KEY_F12, 123, "F12", "F12" }
 };
 
+/* ---------------------------------------------------------------------------
+ *  Files into the page: an image pasted
+ * ------------------------------------------------------------------------- */
+
+static const char* rw_image_name(const char* mime) {
+	if (strcmp(mime, "image/jpeg") == 0) return "screenshot.jpg";
+	if (strcmp(mime, "image/webp") == 0) return "screenshot.webp";
+	if (strcmp(mime, "image/gif") == 0) return "screenshot.gif";
+	if (strcmp(mime, "image/bmp") == 0) return "screenshot.bmp";
+	return "screenshot.png";
+}
+
+static const char g_rw_base64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static void rw_base64_add(rw_text_t* text, const uint8_t* bytes, size_t size) {
+	size_t i;
+	char quad[4];
+	for (i = 0; i < size; i += 3) {
+		uint32_t value = (uint32_t)bytes[i] << 16;
+		if (i + 1 < size) value |= (uint32_t)bytes[i + 1] << 8;
+		if (i + 2 < size) value |= bytes[i + 2];
+		quad[0] = g_rw_base64[(value >> 18) & 63];
+		quad[1] = g_rw_base64[(value >> 12) & 63];
+		quad[2] = i + 1 < size ? g_rw_base64[(value >> 6) & 63] : '=';
+		quad[3] = i + 2 < size ? g_rw_base64[value & 63] : '=';
+		rw_text_add(text, quad, 4);
+	}
+}
+
+/* The page gets a paste event whose clipboardData holds the image as a File. */
+static void rw_view_paste_image(rw_view_t* view, const uint8_t* bytes, size_t size, const char* mime) {
+	rw_text_t script, data;
+	memset(&script, 0, sizeof(script));
+	memset(&data, 0, sizeof(data));
+	rw_base64_add(&data, bytes, size);
+	rw_text_puts(&script, "(function(b64,type,name){var bin=atob(b64),n=bin.length,a=new Uint8Array(n);"
+		"for(var i=0;i<n;i++)a[i]=bin.charCodeAt(i);"
+		"var f=new File([a],name,{type:type});var dt=new DataTransfer();dt.items.add(f);"
+		"(document.activeElement||document).dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));})(");
+	rw_text_json(&script, data.data ? data.data : "");
+	rw_text_puts(&script, ",");
+	rw_text_json(&script, mime);
+	rw_text_puts(&script, ",");
+	rw_text_json(&script, rw_image_name(mime));
+	rw_text_puts(&script, ")");
+	rw_view_script(view, script.data, RW_KIND_NONE, NULL, NULL);
+	rw_text_free(&script);
+	rw_text_free(&data);
+}
+
+/* Ctrl+V with no text on the clipboard: an image there goes to the page. R_TRUE when one did. */
+static int rw_view_paste_clipboard_image(rw_view_t* view) {
+	size_t size = 0;
+	const char* mime = NULL;
+	if (g_rw_clip_image) {
+		const void* bytes = g_rw_clip_image(&size, &mime, g_rw_clip_image_user);
+		if (!bytes || size == 0 || !mime) return 0;
+		rw_view_paste_image(view, (const uint8_t*)bytes, size, mime);
+		return 1;
+	} else {
+		char type[32];
+		uint8_t* bytes = rw_clipboard_image(&size, type, sizeof(type));
+		if (!bytes) return 0;
+		rw_view_paste_image(view, bytes, size, type);
+		rw_free(bytes);
+		return 1;
+	}
+}
+
+/* ---------------------------------------------------------------------------
+ *  Files into the page: a drop
+ * ------------------------------------------------------------------------- */
+
+static int rw_view_drop(Rid widget, const RDropEvent* event, void* user_data) {
+	rw_view_t* view = (rw_view_t*)user_data;
+	float zoom = view->zoom > 0.0f ? view->zoom : 1.0f;
+	rw_text_t files;
+	static const char* const phases[] = { "dragEnter", "dragOver", "drop" };
+	int i;
+	(void)widget;
+	if (view->state == RW_STATE_FAILED) return R_FALSE;
+	/* (the files are known only when they are dropped: the page hears of the drag then) */
+	if (event->phase == R_DROP_ENTER || event->phase == R_DROP_MOVE) return event->drag_type == NULL;
+	if (event->phase != R_DROP_DROPPED || event->path_count <= 0 || !event->paths) return R_FALSE;
+	memset(&files, 0, sizeof(files));
+	for (i = 0; i < event->path_count; i++) {
+		if (i) rw_text_puts(&files, ",");
+		rw_text_json(&files, event->paths[i]);
+	}
+	for (i = 0; i < 3; i++) {
+		rw_text_t params;
+		memset(&params, 0, sizeof(params));
+		rw_text_printf(&params, "{\"type\":\"%s\",\"x\":%.2f,\"y\":%.2f,\"modifiers\":0,\"data\":{\"items\":[],\"files\":[", phases[i],
+			(double)(event->local_x / zoom), (double)(event->local_y / zoom));
+		rw_text_puts(&params, files.data);
+		rw_text_puts(&params, "],\"dragOperationsMask\":1}}");
+		rw_view_send(view, "Input.dispatchDragEvent", params.data, RW_KIND_NONE, NULL, NULL);
+		rw_text_free(&params);
+	}
+	rw_text_free(&files);
+	return R_TRUE;
+}
+
 static void rw_view_key(rw_view_t* view, const REvent* event, int down) {
 	rw_text_t params;
 	char physical[16], name[8];
@@ -825,6 +1021,7 @@ static void rw_view_key(rw_view_t* view, const REvent* event, int down) {
 				break;
 			case R_KEY_V: {
 				const char* text = Rclipboard_get_text();
+				if ((!text || !text[0]) && rw_view_paste_clipboard_image(view)) return;
 				if (text && text[0]) {
 					memset(&params, 0, sizeof(params));
 					rw_text_puts(&params, "{\"text\":");
@@ -1032,6 +1229,7 @@ Rid Rweb_view_create(void) {
 	Rcustom_set_measure_callback(widget, rw_view_measure, view);
 	Rwidget_set_event_callback(widget, rw_view_event, view);
 	Rwidget_set_destroy_callback(widget, rw_view_destroyed, view);
+	Rwidget_set_drop_callback(widget, rw_view_drop, view);
 	Rwidget_set_focusable(widget, R_TRUE);
 	rw_view_open(view);
 	return widget;
@@ -1273,4 +1471,14 @@ static int rw_xml_attribute(Rid widget, const char* name, const char* value, voi
 
 void Rweb_register_xml(void) {
 	Rxml_register_tag("WebView", rw_xml_create, rw_xml_attribute, NULL);
+}
+
+void Rweb_set_file_chooser(RWebFileChooser chooser, void* user_data) {
+	g_rw_chooser = chooser;
+	g_rw_chooser_user = user_data;
+}
+
+void Rweb_set_clipboard_image(RWebClipboardImage provider, void* user_data) {
+	g_rw_clip_image = provider;
+	g_rw_clip_image_user = user_data;
 }

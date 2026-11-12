@@ -201,6 +201,155 @@ static const char g_page[] =
 	"<input id='t' oninput=\"window.raven.postMessage({typed: this.value})\">"
 	"<script>window.raven.postMessage('ready');</script></body></html>";
 
+/* ---------------------------------------------------------------------------
+ *  Files into pages: the picker, a pasted image, a drop
+ * ------------------------------------------------------------------------- */
+
+/* What the page told, one message after the other. */
+static int g_logged = 0;
+static char g_log[4096];
+static void on_log(Rid view, const char* message, void* user_data) {
+	(void)view;
+	(void)user_data;
+	g_logged++;
+	if (strlen(g_log) + strlen(message) + 2 < sizeof(g_log)) {
+		strcat(g_log, message);
+		strcat(g_log, "\n");
+	}
+}
+
+static const char g_files_page[] =
+	"<!doctype html><html><body style='margin:0'>"
+	"<input id='f' type='file' multiple style='position:absolute;left:20px;top:20px;width:300px;height:40px'>"
+	"<div id='d' style='position:absolute;left:20px;top:120px;width:300px;height:100px;background:#468'></div>"
+	"<script>"
+	"function rec(kind, files) { Array.prototype.forEach.call(files, function(file) {"
+	" var r = new FileReader(); r.onload = function() { window.raven.postMessage({kind: kind, name: file.name, size: file.size, type: file.type, read: r.result.byteLength}); };"
+	" r.readAsArrayBuffer(file); }); if (!files.length) window.raven.postMessage({kind: kind, none: true}); }"
+	"document.getElementById('f').addEventListener('change', function(e) { rec('picker', e.target.files); });"
+	"document.addEventListener('paste', function(e) { rec('paste', e.clipboardData.files); });"
+	"document.addEventListener('dragover', function(e) { e.preventDefault(); });"
+	"document.addEventListener('drop', function(e) { e.preventDefault(); rec('drop', e.dataTransfer.files); });"
+	"window.raven.postMessage('files ready');"
+	"</script></body></html>";
+
+/* A 1x1 PNG. */
+static const unsigned char g_png[] = {
+	0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+	0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0xF8, 0xFF, 0xFF, 0x3F,
+	0x00, 0x05, 0xFE, 0x02, 0xFE, 0xA7, 0x35, 0x81, 0x84, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+};
+
+static char g_picked_path[512];
+static int g_chooser_calls = 0, g_chooser_multiple = -1, g_chooser_cancel = 0;
+static const char* stub_chooser(Rid view, int multiple, void* user_data) {
+	(void)view;
+	(void)user_data;
+	g_chooser_calls++;
+	g_chooser_multiple = multiple;
+	return g_chooser_cancel ? NULL : g_picked_path;
+}
+
+static int g_clip_calls = 0;
+static const void* stub_clipboard_image(size_t* size, const char** mime, void* user_data) {
+	(void)user_data;
+	g_clip_calls++;
+	*size = sizeof(g_png);
+	*mime = "image/png";
+	return g_png;
+}
+
+static void click_at(Rid window, float x, float y) {
+	Rwindow_inject_mouse_move(window, x, y);
+	Rwindow_inject_mouse_button(window, R_MOUSE_LEFT, R_TRUE);
+	Rwindow_inject_mouse_button(window, R_MOUSE_LEFT, R_FALSE);
+}
+
+static void test_files_into_pages(Rid window, Rid view) {
+	float x, y, w, h;
+	const char* content = "hello from a file";
+	const char* dropped[1];
+	Rwidget_get_rect(view, &x, &y, &w, &h);
+	Rweb_view_set_message_callback(view, on_log, NULL);
+	g_log[0] = 0;
+	g_logged = 0;
+	Rweb_view_load_html(view, g_files_page, NULL);
+	CHECK(pump(&g_logged, 1, 30.0));
+	CHECK(strstr(g_log, "files ready") != NULL);
+	pump_for(0.5);
+
+	/* a file on disk, chosen by the (stub) dialog */
+	{
+		const char* dir = getenv("TMPDIR");
+		snprintf(g_picked_path, sizeof(g_picked_path), "%s/raven_web_picked_%ld.txt", dir && dir[0] ? dir : "/tmp", (long)(Rget_time() * 1000.0));
+		CHECK(Rfile_write(g_picked_path, content, strlen(content)));
+	}
+	Rweb_set_file_chooser(stub_chooser, NULL);
+
+	/* the picker: a click on the input; the page gets its change event with the file */
+	g_log[0] = 0;
+	g_logged = 0;
+	click_at(window, x + 100.0f, y + 40.0f);
+	CHECK(pump(&g_logged, 1, 20.0));
+	CHECK(g_chooser_calls == 1);
+	CHECK(g_chooser_multiple == 1);
+	CHECK(strstr(g_log, "\"kind\":\"picker\"") != NULL);
+	CHECK(strstr(g_log, "raven_web_picked_") != NULL);
+	{
+		char expected[64];
+		snprintf(expected, sizeof(expected), "\"size\":%d", (int)strlen(content));
+		CHECK(strstr(g_log, expected) != NULL);
+		snprintf(expected, sizeof(expected), "\"read\":%d", (int)strlen(content));
+		CHECK(strstr(g_log, expected) != NULL);
+	}
+
+	/* cancelled: the page hears nothing */
+	g_log[0] = 0;
+	g_logged = 0;
+	g_chooser_cancel = 1;
+	click_at(window, x + 100.0f, y + 40.0f);
+	CHECK(pump(&g_chooser_calls, 2, 20.0));
+	pump_for(0.7);
+	CHECK(g_logged == 0);
+	g_chooser_cancel = 0;
+
+	/* Ctrl+V with an image on the clipboard: a paste event with the image as a File */
+	Rweb_set_clipboard_image(stub_clipboard_image, NULL);
+	Rwidget_focus(view);
+	g_log[0] = 0;
+	g_logged = 0;
+	Rwindow_inject_key(window, R_KEY_V, R_TRUE, R_MOD_CTRL);
+	Rwindow_inject_key(window, R_KEY_V, R_FALSE, R_MOD_CTRL);
+	CHECK(pump(&g_logged, 1, 20.0));
+	CHECK(g_clip_calls >= 1);
+	CHECK(strstr(g_log, "\"kind\":\"paste\"") != NULL);
+	CHECK(strstr(g_log, "\"name\":\"screenshot.png\"") != NULL);
+	CHECK(strstr(g_log, "\"type\":\"image/png\"") != NULL);
+	{
+		char expected[64];
+		snprintf(expected, sizeof(expected), "\"size\":%d", (int)sizeof(g_png));
+		CHECK(strstr(g_log, expected) != NULL);
+	}
+	Rweb_set_clipboard_image(NULL, NULL);
+
+	/* a drop of a file on the page */
+	g_log[0] = 0;
+	g_logged = 0;
+	dropped[0] = g_picked_path;
+	CHECK(Rwindow_inject_drop(window, x + 100.0f, y + 160.0f, dropped, 1, NULL));
+	CHECK(pump(&g_logged, 1, 20.0));
+	CHECK(strstr(g_log, "\"kind\":\"drop\"") != NULL);
+	CHECK(strstr(g_log, "raven_web_picked_") != NULL);
+	{
+		char expected[64];
+		snprintf(expected, sizeof(expected), "\"read\":%d", (int)strlen(content));
+		CHECK(strstr(g_log, expected) != NULL);
+	}
+	Rweb_set_file_chooser(NULL, NULL);
+	remove(g_picked_path);
+	Rweb_view_set_message_callback(view, on_message, NULL);
+}
+
 static void test_with_browser(void) {
 	Rid window, view, box;
 	float x, y, w, h;
@@ -392,6 +541,8 @@ static void test_with_browser(void) {
 		CHECK(pump(&g_script_calls, 1, 10.0));
 		CHECK_STR(g_script_result, "\"first\"");
 	}
+
+	test_files_into_pages(window, view);
 
 	Rshutdown();
 }
