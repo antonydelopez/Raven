@@ -53,6 +53,8 @@ typedef struct rvn_island_t {
 	int hover_blocked;
 	/** Risland_set_calm: it opens with the smooth motion instead of the bouncy one. */
 	int calm;
+	/** Risland_set_focused: 0 (zeroed, the default) no focus look; 1 the keyboard is elsewhere (dimmed); 2 it has the keyboard (an accent ring). */
+	int focus_look;
 
 	/** The size it is drawn with; it runs after the size of the content shown. */
 	RSpring width, height;
@@ -447,6 +449,13 @@ static void rvn_island_paint(rvn_widget_t* widget, RPainter* painter) {
 		rvn_paint_glass(painter, rect, radii, &glass);
 	}
 
+	/* Risland_set_focused: the keyboard is here, an accent ring around the capsule; elsewhere, a dim one over the rim */
+	if (island->focus_look && island->notch_w <= 0.0f) {
+		int on = island->focus_look == 2;
+		rvn_color_t ring = on ? rvn_color_fade(rvn_widget_color(widget, R_COLOR_ACCENT), 0.9f) : rvn_rgba(0.0f, 0.0f, 0.0f, 0.35f);
+		rvn_paint_box4(painter, rect, radii, rvn_rgba(0.0f, 0.0f, 0.0f, on ? 0.0f : 0.18f), on ? 1.5f : 1.0f, ring);
+	}
+
 	/* the contents, kept inside the capsule: the largest rectangle that stays clear of its round corners */
 	{
 		RPainter inner = *painter;
@@ -608,6 +617,14 @@ void Risland_set_expand_on_click(Rid id, int enabled) {
 void Risland_set_calm(Rid id, int calm) {
 	RVN_WIDGET_VOID(widget, id, R_WIDGET_ISLAND);
 	((rvn_island_t*)widget)->calm = calm != 0;
+}
+
+void Risland_set_focused(Rid id, int focused) {
+	RVN_WIDGET_VOID(widget, id, R_WIDGET_ISLAND);
+	int f = focused < 0 ? 0 : focused ? 2 : 1;
+	if (((rvn_island_t*)widget)->focus_look == f) return;
+	((rvn_island_t*)widget)->focus_look = f;
+	rvn_widget_invalidate_paint(widget);
 }
 
 void Risland_set_attached(Rid id, int attached) {

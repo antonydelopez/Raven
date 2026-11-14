@@ -307,6 +307,8 @@ extern "C" {
 	RAVEN_API void Risland_set_expand_on_click(Rid island, int enabled);
 	/** @brief R_TRUE: the island opens with the smooth motion, without the bounce at the end (default R_FALSE: it bounces). */
 	RAVEN_API void Risland_set_calm(Rid island, int calm);
+	/** @brief -1 (default): no focus look; 1: the keyboard is the island's window's (an accent ring); 0: it is elsewhere (dimmed). */
+	RAVEN_API void Risland_set_focused(Rid island, int focused);
 	/**
 	 * @brief R_TRUE gives the island square upper corners: a notch that hangs
 	 * from the edge it touches, instead of a capsule that floats under it.
